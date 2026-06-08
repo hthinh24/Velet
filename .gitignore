@@ -1,6 +1,8 @@
 # IntelliJ IDEA #
 .idea/
 
+.vscode
+
 # Env #
 .env
 

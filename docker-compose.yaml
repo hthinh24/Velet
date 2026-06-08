@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  velet-db:
+    image: postgres:17-alpine
+    container_name: velet-db
+    environment:
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:5432"
+    volumes:
+      - ${DATA_DIR:-./velet-local-data}/postgres:/var/lib/postgresql/data
+    networks:
+      - velet-network
+
+  velet-cache:
+    image: redis:8.0-alpine
+    container_name: velet-cache
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - ${DATA_DIR:-./velet-local-data}/redis:/data
+    networks:
+      - velet-network
+
+networks:
+  velet-network:
+    driver: bridge
