@@ -90,51 +90,6 @@ public class JwtUtil {
         }
     }
 
-    public boolean isTokenValid(String token) {
-        try {
-            // 1. Blacklist Check
-//            if (blacklistService.isBlacklisted(token)) {
-//                return false;
-//            }
-
-            // 2. Parse & Verify Signature
-            SignedJWT signedJWT = SignedJWT.parse(token);
-            JWSVerifier verifier = new MACVerifier(jwtConfig.getSecretKey().getBytes());
-
-            // 3. verify signature
-            if (!signedJWT.verify(verifier)) {
-                return false;
-            }
-
-            // 4. Validate expiration
-            JWTClaimsSet claims = signedJWT.getJWTClaimsSet();
-            Date expiration = claims.getExpirationTime();
-
-            boolean isExpired = expiration.before(new Date());
-            return !isExpired;
-
-        } catch (JOSEException | ParseException e) {
-            log.error("Error validating token", e);
-            return false;
-        }
-    }
-
-    public List<String> extractRoles(String token) {
-        try {
-            SignedJWT signedJWT = SignedJWT.parse(token);
-            List<String> roles = (List<String>) signedJWT.getJWTClaimsSet().getClaim("roles");
-
-            if (roles != null) {
-                return roles;
-            }
-
-            return Collections.emptyList();
-        } catch (Exception e) {
-            log.error("Error extracting roles from token", e);
-            return Collections.emptyList();
-        }
-    }
-
     public long getTokenExpiration(String refreshToken) {
         try {
             SignedJWT signedJWT = SignedJWT.parse(refreshToken);
