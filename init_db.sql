@@ -1,0 +1,3 @@
+CREATE DATABASE identity;
+CREATE DATABASE wallet;
+CREATE DATABASE loyalty;

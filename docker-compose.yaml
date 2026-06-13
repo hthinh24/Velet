@@ -7,11 +7,11 @@ services:
     environment:
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
     ports:
       - "${DB_PORT}:5432"
     volumes:
       - ${DATA_DIR:-./velet-local-data}/postgres:/var/lib/postgresql/data
+      - ./init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
     networks:
       - velet-network
 
@@ -19,7 +19,7 @@ services:
     image: redis:8.0-alpine
     container_name: velet-cache
     ports:
-      - "${REDIS_PORT}:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - ${DATA_DIR:-./velet-local-data}/redis:/data
     networks:

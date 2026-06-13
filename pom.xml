@@ -26,11 +26,14 @@
         <springdoc-openapi-starter-webmvc-ui.version>3.0.1</springdoc-openapi-starter-webmvc-ui.version>
         <spring-cloud.version>2025.1.1</spring-cloud.version>
         <nimbus-jose-jwt.version>10.4</nimbus-jose-jwt.version>
+        <flyway.version>10.11.0</flyway.version>
+
     </properties>
 
     <modules>
         <module>services/identity</module>
         <module>services/gateway</module>
+        <module>services/wallet</module>
     </modules>
 
     <dependencyManagement>
@@ -55,6 +58,18 @@
                 <groupId>com.nimbusds</groupId>
                 <artifactId>nimbus-jose-jwt</artifactId>
                 <version>${nimbus-jose-jwt.version}</version>
+            </dependency>
+
+            <!-- DATA MIGRATION -->
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-core</artifactId>
+                <version>${flyway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-database-postgresql</artifactId>
+                <version>${flyway.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
