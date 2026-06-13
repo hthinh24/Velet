@@ -1,12 +1,13 @@
 server:
   port: 8081
+
 spring:
   application:
     name: identity
   config:
     import: optional:file:.env[.properties]
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/velet_db}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/identity}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:root}
     driver-class-name: org.postgresql.Driver
@@ -28,7 +29,6 @@ spring:
           max-idle: 5
           min-idle: 1
           max-wait: 2000ms
-
   cache:
     type: redis
 
