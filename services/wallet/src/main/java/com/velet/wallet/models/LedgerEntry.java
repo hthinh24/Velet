@@ -4,9 +4,9 @@ import com.velet.wallet.models.enums.EntryType;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcType;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.dialect.type.PostgreSQLEnumJdbcType;
-
-import java.util.UUID;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "ledger_entries")
@@ -18,9 +18,9 @@ import java.util.UUID;
 public class LedgerEntry extends BaseCreatableEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", updatable = false, nullable = false)
-    private UUID id;
+    private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transaction_id", nullable = false)
@@ -42,5 +42,6 @@ public class LedgerEntry extends BaseCreatableEntity {
     private Long runningBalance;
 
     @Column(name = "idempotency_key", nullable = false, unique = true)
-    private UUID idempotencyKey;
+    @JdbcTypeCode(SqlTypes.UUID)
+    private String idempotencyKey;
 }

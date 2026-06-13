@@ -4,12 +4,9 @@ import com.velet.wallet.models.enums.BillStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcType;
-import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.dialect.type.PostgreSQLEnumJdbcType;
-import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "bills")
@@ -21,9 +18,9 @@ import java.util.UUID;
 public class Bill extends BaseCreatableEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", updatable = false, nullable = false)
-    private UUID id;
+    private Long id;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false, unique = true)
@@ -43,7 +40,7 @@ public class Bill extends BaseCreatableEntity {
 
     @Enumerated(EnumType.STRING)
     @JdbcType(PostgreSQLEnumJdbcType.class)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "bill_status")
     @Builder.Default
     private BillStatus status = BillStatus.UNPAID;
 

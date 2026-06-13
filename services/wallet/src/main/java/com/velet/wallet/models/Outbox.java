@@ -9,7 +9,6 @@ import org.hibernate.type.SqlTypes;
 import lombok.*;
 
 import java.time.OffsetDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(name = "outbox")
@@ -21,12 +20,12 @@ import java.util.UUID;
 public class Outbox extends BaseCreatableEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", updatable = false, nullable = false)
-    private UUID id;
+    private Long id;
 
     @Column(name = "aggregate_id", nullable = false)
-    private UUID aggregateId;
+    private Long aggregateId;
 
     @Column(name = "aggregate_type", nullable = false, length = 50)
     private String aggregateType;
@@ -40,7 +39,7 @@ public class Outbox extends BaseCreatableEntity {
 
     @Enumerated(EnumType.STRING)
     @JdbcType(PostgreSQLEnumJdbcType.class)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "outbox_status")
     @Builder.Default
     private OutboxStatus status = OutboxStatus.PENDING;
 

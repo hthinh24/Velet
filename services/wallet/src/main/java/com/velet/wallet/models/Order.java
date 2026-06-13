@@ -5,11 +5,7 @@ import com.velet.wallet.models.enums.OrderStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcType;
-import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.dialect.type.PostgreSQLEnumJdbcType;
-import org.hibernate.type.SqlTypes;
-
-import java.util.UUID;
 
 @Entity
 @Table(name = "orders")
@@ -21,9 +17,9 @@ import java.util.UUID;
 public class Order extends BaseAuditableEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", updatable = false, nullable = false)
-    private UUID id;
+    private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "transaction_id")
@@ -31,7 +27,7 @@ public class Order extends BaseAuditableEntity {
 
     @Enumerated(EnumType.STRING)
     @JdbcType(PostgreSQLEnumJdbcType.class)
-    @Column(name = "type", nullable = false)
+    @Column(name = "type", nullable = false, columnDefinition = "order_type")
     private OrderType type;
 
     @Column(name = "gross_amount", nullable = false)
@@ -46,12 +42,12 @@ public class Order extends BaseAuditableEntity {
 
     @Enumerated(EnumType.STRING)
     @JdbcType(PostgreSQLEnumJdbcType.class)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, columnDefinition = "order_status")
     @Builder.Default
     private OrderStatus status = OrderStatus.PENDING;
 
     @Column(name = "voucher_instance_id")
-    private UUID voucherInstanceId;
+    private Long voucherInstanceId;
 
     @Column(name = "points_used", nullable = false)
     @Builder.Default

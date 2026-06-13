@@ -7,8 +7,6 @@ import lombok.*;
 import org.hibernate.annotations.JdbcType;
 import org.hibernate.dialect.type.PostgreSQLEnumJdbcType;
 
-import java.util.UUID;
-
 @Entity
 @Table(name = "accounts")
 @Getter
@@ -19,12 +17,12 @@ import java.util.UUID;
 public class Account extends BaseAuditableEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", updatable = false, nullable = false)
-    private UUID id;
+    private Long id;
 
     @Column(name = "owner_id", nullable = false)
-    private UUID ownerId;
+    private Long ownerId;
 
     @Enumerated(EnumType.STRING)
     @JdbcType(PostgreSQLEnumJdbcType.class)
