@@ -27,4 +27,4 @@ services:
 
 networks:
   velet-network:
-    driver: bridge
+    external: true
