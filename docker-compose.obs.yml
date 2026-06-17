@@ -1,0 +1,72 @@
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.149.0
+    container_name: velet-otel-collector
+    command: [ "--config=/etc/otel-collector-config.yml" ]
+    volumes:
+      - ./infrastructure/otel/otel-collector-config.yml:/etc/otel-collector-config.yml
+    ports:
+      - "${OTEL_COLLECTOR_GRPC_PORT:-4317}:4317" # gRPC port
+      - "${OTEL_COLLECTOR_HTTP_PORT:-4318}:4318" # HTTP port
+      - "${OTEL_COLLECTOR_METRICS_PORT:-8889}:8889"
+    networks:
+      - velet-network
+
+  prometheus:
+    image: prom/prometheus:v3.11.1
+    container_name: velet-prometheus
+    depends_on:
+      - otel-collector
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+
+      # Data retention settings
+      - '--storage.tsdb.retention.time=3d' # Storage data for at least 3 days
+      - '--storage.tsdb.retention.size=1GB' # Storage data up to 1GB
+    networks:
+      - velet-network
+
+  grafana:
+    image: grafana/grafana:12.4
+    container_name: velet-grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infrastructure/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./infrastructure/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+    networks:
+      - velet-network
+
+  tempo:
+    image: grafana/tempo:2.10.0
+    container_name: velet-tempo
+    depends_on:
+      - grafana
+    ports:
+      - "${TEMPO_PORT:-3200}:3200"
+    volumes:
+      - ./infrastructure/tempo/tempo.yaml:/etc/tempo.yaml
+    command: [ "-config.file=/etc/tempo.yaml" ]
+    networks:
+      - velet-network
+
+networks:
+  velet-network:
+    external: true
+
+volumes:
+  prometheus-data:
+  grafana-data:
