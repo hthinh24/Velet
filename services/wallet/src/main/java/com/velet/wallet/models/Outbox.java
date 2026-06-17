@@ -8,7 +8,7 @@ import org.hibernate.dialect.type.PostgreSQLEnumJdbcType;
 import org.hibernate.type.SqlTypes;
 import lombok.*;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "outbox")
@@ -48,5 +48,5 @@ public class Outbox extends BaseCreatableEntity {
     private Integer retryCount = 0;
 
     @Column(name = "sent_at")
-    private OffsetDateTime sentAt;
+    private Instant sentAt;
 }

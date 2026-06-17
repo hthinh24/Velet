@@ -27,8 +27,8 @@ public class LedgerEntry extends BaseCreatableEntity {
     private Transaction transaction;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "account_id", nullable = false)
-    private Account account;
+    @JoinColumn(name = "wallet_id", nullable = false)
+    private Wallet wallet;
 
     @Enumerated(EnumType.STRING)
     @JdbcType(PostgreSQLEnumJdbcType.class)
@@ -42,6 +42,5 @@ public class LedgerEntry extends BaseCreatableEntity {
     private Long runningBalance;
 
     @Column(name = "idempotency_key", nullable = false, unique = true)
-    @JdbcTypeCode(SqlTypes.UUID)
     private String idempotencyKey;
 }

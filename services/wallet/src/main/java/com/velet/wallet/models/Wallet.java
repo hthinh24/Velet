@@ -8,13 +8,13 @@ import org.hibernate.annotations.JdbcType;
 import org.hibernate.dialect.type.PostgreSQLEnumJdbcType;
 
 @Entity
-@Table(name = "accounts")
+@Table(name = "wallets")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Account extends BaseAuditableEntity {
+public class Wallet extends BaseAuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,7 +26,7 @@ public class Account extends BaseAuditableEntity {
 
     @Enumerated(EnumType.STRING)
     @JdbcType(PostgreSQLEnumJdbcType.class)
-    @Column(name = "type", nullable = false, columnDefinition = "account_type")
+    @Column(name = "type", nullable = false, columnDefinition = "wallet_type")
     @Builder.Default
     private AccountType type = AccountType.USER;
 
@@ -44,12 +44,7 @@ public class Account extends BaseAuditableEntity {
 
     @Enumerated(EnumType.STRING)
     @JdbcType(PostgreSQLEnumJdbcType.class)
-    @Column(name = "status", nullable = false, columnDefinition = "account_status")
+    @Column(name = "status", nullable = false, columnDefinition = "wallet_status")
     @Builder.Default
     private AccountStatus status = AccountStatus.ACTIVE;
-
-    @Version
-    @Column(name = "version", nullable = false)
-    @Builder.Default
-    private Long version = 0L;
 }

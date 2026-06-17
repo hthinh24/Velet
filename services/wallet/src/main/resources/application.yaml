@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: wallet
+    name: velet-wallet-service
   config:
     import: optional:file:.env[.properties]
   datasource:
@@ -14,6 +14,9 @@ spring:
   jpa:
     properties:
       hibernate:
+        jdbc:
+          batch_size: 10
+          order_inserts: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     hibernate:
@@ -31,3 +34,15 @@ spring:
           max-wait: 2000ms
   cache:
     type: redis
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"

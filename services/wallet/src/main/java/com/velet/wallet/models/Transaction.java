@@ -24,12 +24,12 @@ public class Transaction extends BaseAuditableEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "source_account_id", nullable = false)
-    private Account sourceAccount;
+    @JoinColumn(name = "source_wallet_id", nullable = false)
+    private Wallet sourceWallet;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "destination_account_id", nullable = false)
-    private Account destinationAccount;
+    @JoinColumn(name = "destination_wallet_id", nullable = false)
+    private Wallet destinationWallet;
 
     @Column(name = "amount", nullable = false)
     private Long amount;
@@ -50,6 +50,5 @@ public class Transaction extends BaseAuditableEntity {
     private TransactionStatus status = TransactionStatus.PENDING;
 
     @Column(name = "idempotency_key", nullable = false, unique = true)
-    @JdbcTypeCode(SqlTypes.UUID)
     private String idempotencyKey;
 }

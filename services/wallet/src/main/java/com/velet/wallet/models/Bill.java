@@ -6,7 +6,7 @@ import lombok.*;
 import org.hibernate.annotations.JdbcType;
 import org.hibernate.dialect.type.PostgreSQLEnumJdbcType;
 
-import java.time.OffsetDateTime;
+import java.time.Instant;
 
 @Entity
 @Table(name = "bills")
@@ -45,8 +45,8 @@ public class Bill extends BaseCreatableEntity {
     private BillStatus status = BillStatus.UNPAID;
 
     @Column(name = "due_date")
-    private OffsetDateTime dueDate;
+    private Instant dueDate;
 
     @Column(name = "paid_at")
-    private OffsetDateTime paidAt;
+    private Instant paidAt;
 }
