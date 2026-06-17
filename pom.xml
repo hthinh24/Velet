@@ -25,6 +25,7 @@
         <org.lombok.version>1.18.42</org.lombok.version>
         <springdoc-openapi-starter-webmvc-ui.version>3.0.1</springdoc-openapi-starter-webmvc-ui.version>
         <spring-cloud.version>2025.1.1</spring-cloud.version>
+        <spring-boot-starter-aop.version>4.0.0-M2</spring-boot-starter-aop.version>
         <nimbus-jose-jwt.version>10.4</nimbus-jose-jwt.version>
         <flyway.version>10.11.0</flyway.version>
 
@@ -52,6 +53,14 @@
                 <version>${spring-cloud.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- AOP -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-starter-aop</artifactId>
+                <version>${spring-boot-starter-aop.version}</version>
+                <scope>compile</scope>
             </dependency>
 
             <dependency>
