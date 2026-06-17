@@ -25,7 +25,7 @@ INSERT INTO role_permissions (role_id, permission_id)
 VALUES ((SELECT id FROM roles WHERE name = 'ADMIN'),
         (SELECT id FROM permissions WHERE name = 'FULL_ACCESS'));
 
--- Sample user & admin account (at least 10 users (1 admin & 9 temp user))
+-- Sample user & admin wallet (at least 10 users (1 admin & 9 temp user))
 INSERT INTO Users (username, password, kyc_status)
 VALUES ('admin@gmail.com', '$2a$10$NL.fF5iJyANZKrvzuCjUT.V7DQrFE5oddrZ1vIouVi07UimJ2tX1y', 'VERIFIED'), -- password: admin123,
        ('user1@gmail.com', '$2a$10$LQC60YO.ZW1AYMMcKEkxfuaKSjK4rSTAYV1r28eThu8IHfVgrQWI.', 'VERIFIED'), -- password: user1
