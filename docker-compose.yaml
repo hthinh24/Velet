@@ -25,6 +25,30 @@ services:
     networks:
       - velet-network
 
+  rabbitmq:
+    image: rabbitmq:4.2.8-management-alpine
+    container_name: velet-rabbitmq
+    ports:
+      # (AMQP protocol)
+      - "${RABBITMQ_PORT}:5672"
+      # Web UI Management
+      - "${RABBITMQ_UI_PORT}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: >-
+        -rabbit vm_memory_high_watermark {absolute,800000000}
+        -rabbit disk_free_limit 2000000000
+    volumes:
+      - ${DATA_DIR:-./velet-local-data}/rabbitmq:/var/lib/rabbitmq
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
+    networks:
+      - velet-network
+
 networks:
   velet-network:
     external: true
