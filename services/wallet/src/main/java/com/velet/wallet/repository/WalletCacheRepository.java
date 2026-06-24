@@ -12,6 +12,10 @@ public interface WalletCacheRepository {
 
     void evictAccount(String walletId);
 
+    boolean deductBalance(Long walletId, Long amount);
+
+    boolean addBalance(Long walletId, Long amount);
+
     boolean acquireLock(String walletId);
 
     void releaseLock(String walletId);

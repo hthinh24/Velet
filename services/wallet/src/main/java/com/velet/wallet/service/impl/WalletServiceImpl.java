@@ -79,6 +79,9 @@ public class WalletServiceImpl implements WalletService {
         boolean firstAcquire = false;
         boolean secondAcquire = false;
 
+        boolean isDeducted = false;
+        boolean isAdded = false;
+
         try {
             acquireOrThrow(firstLock);
             firstAcquire = true;
@@ -88,23 +91,34 @@ public class WalletServiceImpl implements WalletService {
 
             log.info("transfer.lock.acquired firstLock={} secondLock={}", firstLock, secondLock);
 
-            checkSufficientBalance(sender, request.amount());
+            isDeducted = cacheRepo.deductBalance(sender.walletId(), request.amount().longValueExact());
+            isAdded = cacheRepo.addBalance(receiver.walletId(), request.amount().longValueExact());
+
+//            checkSufficientBalance(sender, request.amount());
 
             long startMs = System.currentTimeMillis();
-            TransferResponse response = walletServiceExecutor.transfer(sender, receiver, request);
+            TransferResponse response = walletServiceExecutor.transfer(sender.walletId(), receiver.walletId(), request);
             log.info("transfer.completed transactionId={} durationMs={}",
                      response.transactionId(), System.currentTimeMillis() - startMs);
 
             cacheRepo.releaseLock(firstLock);
             cacheRepo.releaseLock(secondLock);
-
-            // TODO: Consider update cache instead evict it in future
-            cacheRepo.evictAccount(request.fromWalletId());
-            cacheRepo.evictAccount(request.toWalletId());
             return response;
 
         } catch (AppException e) {
             log.error("transfer.failed reason={}", e.getMessage(), e);
+
+            // compensate cache changes if DB write failed
+            try {
+                if (isDeducted) cacheRepo.addBalance(sender.walletId(), request.amount().longValueExact());
+                if (isAdded) cacheRepo.deductBalance(receiver.walletId(), request.amount().longValueExact());
+            } catch (Exception compensateError) {
+                log.error("transfer.compensate.FAILED senderId={} receiverId={} " +
+                          "originalError={} compensateError={}",
+                          sender.walletId(), receiver.walletId(), e.getMessage(), compensateError.getMessage());
+                // TODO: Handle compensate FAILED
+            }
+
             if (firstAcquire) cacheRepo.releaseLock(firstLock);
             if (secondAcquire) cacheRepo.releaseLock(secondLock);
 
@@ -145,12 +159,12 @@ public class WalletServiceImpl implements WalletService {
         return info;
     }
 
-    private void checkSufficientBalance(WalletInfo sender, BigDecimal amount) {
-        long effectiveBalance = sender.availableBalance() - sender.pendingBalance();
-        if (effectiveBalance < amount.longValueExact()) {
-            throw new AppException(ErrorCode.INSUFFICIENT_FUNDS);
-        }
-    }
+//    private void checkSufficientBalance(WalletInfo sender, BigDecimal amount) {
+//        long effectiveBalance = sender.availableBalance() - sender.pendingBalance();
+//        if (effectiveBalance < amount.longValueExact()) {
+//            throw new AppException(ErrorCode.INSUFFICIENT_FUNDS);
+//        }
+//    }
 
     private void acquireOrThrow(String walletId) {
         int[] backoffMs = {100, 200, 500};

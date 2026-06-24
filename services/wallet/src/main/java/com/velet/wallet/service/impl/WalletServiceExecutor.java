@@ -47,15 +47,15 @@ public class WalletServiceExecutor {
     private final ObjectMapper objectMapper;
 
     @Transactional
-    public TransferResponse transfer(WalletInfo sender, WalletInfo receiver, TransferRequest request) {
+    public TransferResponse transfer(Long senderId, Long receiverId, TransferRequest request) {
         long amountInCents = request.amount().longValueExact();
 
         // 5a & 5b. Update Credit/Debit wallet
-        walletRepository.deductBalance(sender.walletId(), amountInCents);
-        walletRepository.addBalance(receiver.walletId(), amountInCents);
+        walletRepository.deductBalance(senderId, amountInCents);
+        walletRepository.addBalance(senderId, amountInCents);
 
-        Wallet senderWallet = walletRepository.getReferenceById(sender.walletId());
-        Wallet receiverWallet = walletRepository.getReferenceById(receiver.walletId());
+        Wallet senderWallet = walletRepository.getReferenceById(senderId);
+        Wallet receiverWallet = walletRepository.getReferenceById(receiverId);
 
         // 5c. Insert Transaction — saveAndFlush forces the INSERT immediately
         // can catch DataIntegrityViolationException (duplicate idempotencyKey)

@@ -24,7 +24,8 @@ public enum ErrorCode {
     TRANSFER_TO_SELF(400, "Cannot transfer to the same wallet", HttpStatus.BAD_REQUEST),
     DUPLICATE_TRANSFER(409, "Duplicate transfer request", HttpStatus.CONFLICT),
     LOCK_ACQUISITION_FAILED(503, "Failed to acquire lock", HttpStatus.SERVICE_UNAVAILABLE),
-    ;
+
+    REDIS_EXECUTION_FAILED(500, "Failed to execute Redis operation", HttpStatus.INTERNAL_SERVER_ERROR);
 
     private final int code;
     private final String message;

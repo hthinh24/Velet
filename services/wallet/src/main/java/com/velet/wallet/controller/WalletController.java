@@ -28,7 +28,7 @@ public class WalletController {
     ) {
         var request = new TransferRequest(
                 userId,
-                body.fromAccount(), body.toAccount(), body.amount(),
+                body.fromWalletId(), body.toWalletId(), body.amount(),
                 body.voucherId(), body.points(), idempotencyKey
         );
         return ResponseEntity.ok(ApiResponse.<TransferResponse>builder()

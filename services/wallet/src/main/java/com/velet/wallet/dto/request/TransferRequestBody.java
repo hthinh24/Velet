@@ -8,8 +8,8 @@ import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 
 public record TransferRequestBody(
-        @NotBlank String fromAccount,
-        @NotBlank String toAccount,
+        @NotBlank String fromWalletId,
+        @NotBlank String toWalletId,
         @NotNull @Positive BigDecimal amount,
         @Nullable Long voucherId,
         @Nullable BigDecimal points
