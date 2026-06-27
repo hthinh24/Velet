@@ -1,8 +1,12 @@
 package com.velet.wallet.controller;
 
 import com.velet.wallet.dto.common.ApiResponse;
+import com.velet.wallet.dto.request.ReleaseBalanceRequest;
+import com.velet.wallet.dto.request.ReserveBalanceRequest;
 import com.velet.wallet.dto.request.TransferRequest;
 import com.velet.wallet.dto.request.TransferRequestBody;
+import com.velet.wallet.dto.response.ReleaseBalanceResponse;
+import com.velet.wallet.dto.response.ReserveBalanceResponse;
 import com.velet.wallet.dto.response.TransferResponse;
 import com.velet.wallet.dto.response.WalletInfo;
 import com.velet.wallet.service.WalletService;
@@ -48,5 +52,38 @@ public class WalletController {
                 .message("Account info retrieved")
                 .data(walletService.getWalletById(userId, walletId))
                 .build();
+    }
+
+    @PostMapping("/reserve")
+    public ResponseEntity<ApiResponse<ReserveBalanceResponse>> transfer(
+            @RequestBody @Valid ReserveBalanceRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.<ReserveBalanceResponse>builder()
+                .code(200)
+                .message("Reserve successful")
+                .data(walletService.reserve(request))
+                .build());
+    }
+
+    @GetMapping("/reserve/{idempotencyKey}")
+    public ResponseEntity<ApiResponse<ReserveBalanceResponse>> getReserve(
+            @PathVariable String idempotencyKey
+    ) {
+        return ResponseEntity.ok(ApiResponse.<ReserveBalanceResponse>builder()
+                                            .code(200)
+                                            .message("Reserve retrieved")
+                                            .data(walletService.getReservationStatus(idempotencyKey))
+                                            .build());
+    }
+
+    @PostMapping("/release")
+    public ResponseEntity<ApiResponse<ReleaseBalanceResponse>> transfer(
+            @RequestBody @Valid ReleaseBalanceRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.<ReleaseBalanceResponse>builder()
+                                            .code(200)
+                                            .message("Reserve successful")
+                                            .data(walletService.release(request))
+                                            .build());
     }
 }

@@ -1,12 +1,18 @@
 package com.velet.wallet.service.impl;
 
+import com.velet.wallet.dto.cache.ReservationRecord;
+import com.velet.wallet.dto.request.ReleaseBalanceRequest;
+import com.velet.wallet.dto.request.ReserveBalanceRequest;
 import com.velet.wallet.dto.request.TransferRequest;
+import com.velet.wallet.dto.response.ReleaseBalanceResponse;
+import com.velet.wallet.dto.response.ReserveBalanceResponse;
 import com.velet.wallet.dto.response.WalletInfo;
 import com.velet.wallet.dto.response.TransferResponse;
 import com.velet.wallet.exception.AppException;
 import com.velet.wallet.exception.ErrorCode;
 import com.velet.wallet.models.Wallet;
 import com.velet.wallet.models.enums.AccountStatus;
+import com.velet.wallet.models.enums.ReservationStatus;
 import com.velet.wallet.repository.WalletCacheRepository;
 import com.velet.wallet.repository.WalletRepository;
 import com.velet.wallet.service.WalletService;
@@ -15,11 +21,11 @@ import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.hibernate.exception.LockAcquisitionException;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Orchestrates class that interacts with 3rd components
@@ -125,6 +131,68 @@ public class WalletServiceImpl implements WalletService {
             log.error("transfer.failed reason={}", e.getMessage(), e);
             throw e;
         }
+    }
+
+    @Override
+    public ReserveBalanceResponse reserve(ReserveBalanceRequest request) {
+        getWallet(request.walletId());
+
+        Optional<ReservationRecord> existing =
+                cacheRepo.getReservationRecord(request.idempotencyKey());
+
+        if (existing.isPresent()) {
+            return new ReserveBalanceResponse(ReservationStatus.RESERVED);
+        }
+
+        boolean reserved = cacheRepo.reserve(request.walletId(), request.amount());
+
+        if (!reserved) {
+            log.error("reserve failed insufficient funds walletId={} amount={}", request.walletId(), request.amount());
+            throw new AppException(ErrorCode.INSUFFICIENT_FUNDS);
+        }
+
+        cacheRepo.saveReservationRecord(request.idempotencyKey(), ReservationRecord.builder()
+                                                                                   .status(ReservationStatus.RESERVED.name())
+                                                                                   .walletId(request.walletId())
+                                                                                   .amount(request.amount())
+                                                                                   .reservedAt(Instant.now().toEpochMilli())
+                                                                                   .build());
+
+        return new ReserveBalanceResponse(ReservationStatus.RESERVED);
+    }
+
+    @Override
+    public ReserveBalanceResponse getReservationStatus(String idempotencyKey) {
+        Optional<ReservationRecord> existing =
+                cacheRepo.getReservationRecord(idempotencyKey);
+
+        if (existing.isEmpty()) {
+            throw new AppException(ErrorCode.RESERVATION_NOT_FOUND);
+        }
+
+        return new ReserveBalanceResponse(ReservationStatus.valueOf(existing.get().status()));
+    }
+
+    @Override
+    public ReleaseBalanceResponse release(ReleaseBalanceRequest request) {
+        getWallet(request.walletId());
+
+        Optional<ReservationRecord> existing =
+                cacheRepo.getReservationRecord(request.idempotencyKey());
+
+        if (existing.isEmpty()) {
+            log.warn("release.not_found idempotencyKey={}", request.idempotencyKey());
+            throw new AppException(ErrorCode.RESERVATION_NOT_FOUND);
+        }
+
+        if (ReservationStatus.RELEASED.name().equals(existing.get().status())) {
+            return new ReleaseBalanceResponse(ReservationStatus.RELEASED);
+        }
+
+        cacheRepo.release(request.walletId(), request.amount());
+        cacheRepo.updateReservationRecordStatus(request.idempotencyKey(), ReservationStatus.RELEASED.name());
+
+        return new ReleaseBalanceResponse(ReservationStatus.RELEASED);
     }
 
     private void validateWalletOwner(Long walletOwnerId, Long userId) {

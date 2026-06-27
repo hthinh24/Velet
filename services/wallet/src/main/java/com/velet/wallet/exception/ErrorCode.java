@@ -25,7 +25,11 @@ public enum ErrorCode {
     DUPLICATE_TRANSFER(409, "Duplicate transfer request", HttpStatus.CONFLICT),
     LOCK_ACQUISITION_FAILED(503, "Failed to acquire lock", HttpStatus.SERVICE_UNAVAILABLE),
 
-    REDIS_EXECUTION_FAILED(500, "Failed to execute Redis operation", HttpStatus.INTERNAL_SERVER_ERROR);
+    RESERVATION_NOT_FOUND(404, "Reservation not found", HttpStatus.NOT_FOUND),
+
+    REDIS_EXECUTION_FAILED(500, "Failed to execute Redis operation", HttpStatus.INTERNAL_SERVER_ERROR),
+    WALLET_CACHE_MISS(404, "Wallet cache miss", HttpStatus.NOT_FOUND)
+    ;
 
     private final int code;
     private final String message;

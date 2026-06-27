@@ -9,8 +9,8 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- WALLET
 -- Represents a wallet owned by a user, merchant, or system
 -- ------------------------------------------------------------
-CREATE TYPE wallet_type AS ENUM ('USER', 'MERCHANT', 'SYSTEM');
-CREATE TYPE wallet_status AS ENUM ('ACTIVE', 'FROZEN', 'CLOSED');
+CREATE TYPE wallet_type AS ENUM('USER', 'MERCHANT', 'SYSTEM');
+CREATE TYPE wallet_status AS ENUM('ACTIVE', 'FROZEN', 'CLOSED');
 
 CREATE TABLE wallets
 (
@@ -32,8 +32,8 @@ CREATE INDEX idx_wallets_owner_id ON wallets (owner_id);
 -- TRANSACTION
 -- Records money movement between two wallets
 -- ------------------------------------------------------------
-CREATE TYPE transaction_type AS ENUM ('TRANSFER', 'TOPUP', 'WITHDRAW', 'PAYMENT', 'BILL_PAYMENT');
-CREATE TYPE transaction_status AS ENUM ('PENDING', 'SUCCESS', 'FAILED', 'REVERSED');
+CREATE TYPE transaction_type AS ENUM('TRANSFER', 'TOPUP', 'WITHDRAW', 'PAYMENT', 'BILL_PAYMENT');
+CREATE TYPE transaction_status AS ENUM('PENDING', 'SUCCESS', 'FAILED', 'REVERSED');
 
 CREATE TABLE transactions
 (
@@ -54,11 +54,25 @@ CREATE INDEX idx_transactions_destination ON transactions (destination_wallet_id
 CREATE INDEX idx_transactions_created_at ON transactions (created_at);
 
 -- ------------------------------------------------------------
+-- TRANSACTION
+-- Records money movement between two wallets
+-- ------------------------------------------------------------
+CREATE TABLE balance_reservations
+(
+    id              BIGSERIAL PRIMARY KEY,
+    wallet_id       BIGINT    NOT NULL,
+    amount          BIGINT    NOT NULL,
+    idempotency_key VARCHAR   NOT NULL UNIQUE,
+    status          VARCHAR   NOT NULL, -- RESERVED | COMPLETED | RELEASED
+    created_at      TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- ------------------------------------------------------------
 -- LEDGER_ENTRY
 -- Double-entry bookkeeping: every transaction generates 2 entries
 -- Append-only — never UPDATE or DELETE
 -- ------------------------------------------------------------
-CREATE TYPE entry_type AS ENUM ('DEBIT', 'CREDIT');
+CREATE TYPE entry_type AS ENUM('DEBIT', 'CREDIT');
 
 CREATE TABLE ledger_entries
 (
@@ -80,8 +94,8 @@ CREATE INDEX idx_ledger_created_at ON ledger_entries (created_at);
 -- ORDER
 -- Payment context: aggregates transaction + loyalty usage
 -- ------------------------------------------------------------
-CREATE TYPE order_type AS ENUM ('PAYMENT', 'BILL_PAYMENT');
-CREATE TYPE order_status AS ENUM ('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED');
+CREATE TYPE order_type AS ENUM('PAYMENT', 'BILL_PAYMENT');
+CREATE TYPE order_status AS ENUM('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED');
 
 CREATE TABLE orders
 (
@@ -106,7 +120,7 @@ CREATE INDEX idx_orders_status ON orders (status);
 -- Extension of ORDER for utility bill payments
 -- Stores provider-specific context
 -- ------------------------------------------------------------
-CREATE TYPE bill_status AS ENUM ('UNPAID', 'PAID');
+CREATE TYPE bill_status AS ENUM('UNPAID', 'PAID');
 
 CREATE TABLE bills
 (
@@ -114,7 +128,8 @@ CREATE TABLE bills
     order_id      BIGINT       NOT NULL UNIQUE REFERENCES orders (id),
     provider_code VARCHAR(20)  NOT NULL, -- 'EVN', 'VNPT', 'FPT', ...
     bill_ref_no   VARCHAR(100) NOT NULL, -- bill reference number from provider
-    period        VARCHAR(20),           -- billing period, e.g., '2024-05'
+    period VARCHAR(20
+) ,           -- billing period, e.g., '2024-05'
     amount        BIGINT       NOT NULL CHECK (amount > 0),
     status        bill_status  NOT NULL DEFAULT 'UNPAID',
     due_date      TIMESTAMPTZ,
@@ -130,7 +145,7 @@ CREATE INDEX idx_bills_bill_ref_no ON bills (bill_ref_no);
 -- OUTBOX
 -- Transactional outbox pattern
 -- ------------------------------------------------------------
-CREATE TYPE outbox_status AS ENUM ('PENDING', 'SENT', 'FAILED');
+CREATE TYPE outbox_status AS ENUM('PENDING', 'SENT', 'FAILED');
 
 CREATE TABLE outbox
 (
