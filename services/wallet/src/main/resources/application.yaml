@@ -35,6 +35,13 @@ spring:
   cache:
     type: redis
 
+  rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    listener:
+      simple:
+        prefetch: 10
+
 management:
   endpoints:
     web:
