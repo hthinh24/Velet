@@ -34,14 +34,6 @@ public class Wallet extends BaseAuditableEntity {
     @Builder.Default
     private String currency = "VND";
 
-    @Column(name = "available_balance", nullable = false)
-    @Builder.Default
-    private Long availableBalance = 0L;
-
-    @Column(name = "pending_balance", nullable = false)
-    @Builder.Default
-    private Long pendingBalance = 0L;
-
     @Enumerated(EnumType.STRING)
     @JdbcType(PostgreSQLEnumJdbcType.class)
     @Column(name = "status", nullable = false, columnDefinition = "wallet_status")

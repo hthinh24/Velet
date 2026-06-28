@@ -18,8 +18,6 @@ CREATE TABLE wallets
     owner_id          BIGINT        NOT NULL, -- ref to Identity Service (no FK across services)
     type              wallet_type   NOT NULL DEFAULT 'USER',
     currency          VARCHAR(3)    NOT NULL DEFAULT 'VND',
-    available_balance BIGINT        NOT NULL DEFAULT 0 CHECK (available_balance >= 0),
-    pending_balance   BIGINT        NOT NULL DEFAULT 0 CHECK (pending_balance >= 0),
     status            wallet_status NOT NULL DEFAULT 'ACTIVE',
     version           BIGINT        NOT NULL DEFAULT 0,
     created_at        TIMESTAMPTZ   NOT NULL DEFAULT now(),
@@ -27,6 +25,9 @@ CREATE TABLE wallets
 );
 
 CREATE INDEX idx_wallets_owner_id ON wallets (owner_id);
+
+-- Reserve 1–1000 for system-managed wallets; user wallets start from 1001
+ALTER SEQUENCE wallets_id_seq RESTART WITH 1001;
 
 -- ------------------------------------------------------------
 -- TRANSACTION
@@ -73,22 +74,26 @@ CREATE TABLE balance_reservations
 -- Append-only — never UPDATE or DELETE
 -- ------------------------------------------------------------
 CREATE TYPE entry_type AS ENUM('DEBIT', 'CREDIT');
+CREATE TYPE entry_status AS ENUM('PENDING', 'POSTED', 'RELEASED');
 
 CREATE TABLE ledger_entries
 (
     id              BIGSERIAL PRIMARY KEY,
-    transaction_id  BIGINT      NOT NULL REFERENCES transactions (id),
-    wallet_id       BIGINT      NOT NULL REFERENCES wallets (id),
-    entry_type      entry_type  NOT NULL,
-    amount          BIGINT      NOT NULL CHECK (amount > 0),
-    running_balance BIGINT      NOT NULL, -- balance after this entry
-    idempotency_key varchar(64) NOT NULL UNIQUE,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    transaction_id  BIGINT       NOT NULL REFERENCES transactions (id),
+    wallet_id       BIGINT       NOT NULL REFERENCES wallets (id),
+    entry_type      entry_type   NOT NULL,
+    amount          BIGINT       NOT NULL CHECK (amount > 0),
+    status          entry_status NOT NULL DEFAULT 'POSTED',
+    idempotency_key varchar(64)  NOT NULL UNIQUE,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_ledger_wallet_id ON ledger_entries (wallet_id);
-CREATE INDEX idx_ledger_transaction_id ON ledger_entries (transaction_id);
-CREATE INDEX idx_ledger_created_at ON ledger_entries (created_at);
+-- Covering index: Compute wallet balance to aggregate by status + entry_type without heap fetch
+-- By including amount, we can support SUM, COUNT amount directly from index
+CREATE INDEX idx_ledger_wallet_status_type ON ledger_entries (wallet_id, status, entry_type) INCLUDE (amount);
+
+-- Sequential scan index: Compute wallet balance to query entries after a snapshot checkpoint
+CREATE INDEX idx_ledger_wallet_id_seq ON ledger_entries (wallet_id, id);
 
 -- ------------------------------------------------------------
 -- ORDER
@@ -162,3 +167,23 @@ CREATE TABLE outbox
 
 CREATE INDEX idx_outbox_status ON outbox (status) WHERE status = 'PENDING';
 CREATE INDEX idx_outbox_created_at ON outbox (created_at);
+
+-- ------------------------------------------------------------
+-- BALANCE_SNAPSHOTS
+-- Periodic checkpoint of computed balance counters per wallet.
+-- computeBalance() uses the latest snapshot + only newer entries
+-- to avoid full ledger table scans as history grows.
+-- ------------------------------------------------------------
+CREATE TABLE balance_snapshots
+(
+    wallet_id             BIGINT      NOT NULL REFERENCES wallets (id),
+    snapshot_at           TIMESTAMPTZ NOT NULL,
+    posted_debits         BIGINT      NOT NULL DEFAULT 0,
+    posted_credits        BIGINT      NOT NULL DEFAULT 0,
+    pending_debits        BIGINT      NOT NULL DEFAULT 0,
+    pending_credits       BIGINT      NOT NULL DEFAULT 0,
+    last_ledger_entry_id  BIGINT      NOT NULL,
+    PRIMARY KEY (wallet_id, snapshot_at)
+);
+
+CREATE INDEX idx_snapshot_wallet_latest ON balance_snapshots (wallet_id, snapshot_at DESC);
