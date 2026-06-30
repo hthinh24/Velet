@@ -1,5 +1,6 @@
 package com.velet.wallet.models;
 
+import com.velet.wallet.models.enums.AccountCategory;
 import com.velet.wallet.models.enums.AccountType;
 import com.velet.wallet.models.enums.AccountStatus;
 import jakarta.persistence.*;
@@ -26,9 +27,15 @@ public class Wallet extends BaseAuditableEntity {
 
     @Enumerated(EnumType.STRING)
     @JdbcType(PostgreSQLEnumJdbcType.class)
+    @Column(name = "category", nullable = false, columnDefinition = "wallet_category")
+    @Builder.Default
+    private AccountCategory category = AccountCategory.LIABILITY;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcType(PostgreSQLEnumJdbcType.class)
     @Column(name = "type", nullable = false, columnDefinition = "wallet_type")
     @Builder.Default
-    private AccountType type = AccountType.USER;
+    private AccountType type = AccountType.USER_WALLET;
 
     @Column(name = "currency", nullable = false, length = 3)
     @Builder.Default

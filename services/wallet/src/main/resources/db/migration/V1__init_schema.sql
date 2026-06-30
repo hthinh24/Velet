@@ -9,19 +9,35 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- WALLET
 -- Represents a wallet owned by a user, merchant, or system
 -- ------------------------------------------------------------
-CREATE TYPE wallet_type AS ENUM('USER', 'MERCHANT', 'SYSTEM');
+CREATE TYPE wallet_category AS ENUM('ASSET', 'LIABILITY', 'EQUITY', 'INTERNAL_TECHNICAL');
+
+CREATE TYPE wallet_type AS ENUM(
+    -- ASSET
+    'BANK_VAULT',
+
+    -- LIABILITY
+    'USER_WALLET', 'MERCHANT_WALLET', 'SUSPENSE_ACCOUNT',
+
+    -- EQUITY
+    'EQUITY_CAPITAL', 'REVENUE_MDR', 'MARKETING_PROMO_BUDGET',
+
+    -- INTERNAL_TECHNICAL
+    'RESERVE_ACCOUNT'
+    );
+
 CREATE TYPE wallet_status AS ENUM('ACTIVE', 'FROZEN', 'CLOSED');
 
 CREATE TABLE wallets
 (
-    id                BIGSERIAL PRIMARY KEY,
-    owner_id          BIGINT        NOT NULL, -- ref to Identity Service (no FK across services)
-    type              wallet_type   NOT NULL DEFAULT 'USER',
-    currency          VARCHAR(3)    NOT NULL DEFAULT 'VND',
-    status            wallet_status NOT NULL DEFAULT 'ACTIVE',
-    version           BIGINT        NOT NULL DEFAULT 0,
-    created_at        TIMESTAMPTZ   NOT NULL DEFAULT now(),
-    updated_at        TIMESTAMPTZ   NOT NULL DEFAULT now()
+    id         BIGSERIAL PRIMARY KEY,
+    owner_id   BIGINT          NOT NULL, -- ref to Identity Service (no FK across services)
+    category   wallet_category NOT NULL DEFAULT 'LIABILITY',
+    type       wallet_type     NOT NULL DEFAULT 'USER_WALLET',
+    currency   VARCHAR(3)      NOT NULL DEFAULT 'VND',
+    status     wallet_status   NOT NULL DEFAULT 'ACTIVE',
+    version    BIGINT          NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ     NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ     NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_wallets_owner_id ON wallets (owner_id);
@@ -176,13 +192,13 @@ CREATE INDEX idx_outbox_created_at ON outbox (created_at);
 -- ------------------------------------------------------------
 CREATE TABLE balance_snapshots
 (
-    wallet_id             BIGINT      NOT NULL REFERENCES wallets (id),
-    snapshot_at           TIMESTAMPTZ NOT NULL,
-    posted_debits         BIGINT      NOT NULL DEFAULT 0,
-    posted_credits        BIGINT      NOT NULL DEFAULT 0,
-    pending_debits        BIGINT      NOT NULL DEFAULT 0,
-    pending_credits       BIGINT      NOT NULL DEFAULT 0,
-    last_ledger_entry_id  BIGINT      NOT NULL,
+    wallet_id            BIGINT      NOT NULL REFERENCES wallets (id),
+    snapshot_at          TIMESTAMPTZ NOT NULL,
+    posted_debits        BIGINT      NOT NULL DEFAULT 0,
+    posted_credits       BIGINT      NOT NULL DEFAULT 0,
+    pending_debits       BIGINT      NOT NULL DEFAULT 0,
+    pending_credits      BIGINT      NOT NULL DEFAULT 0,
+    last_ledger_entry_id BIGINT      NOT NULL,
     PRIMARY KEY (wallet_id, snapshot_at)
 );
 

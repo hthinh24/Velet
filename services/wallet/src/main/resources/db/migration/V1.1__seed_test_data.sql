@@ -3,29 +3,78 @@
 -- ==========================================
 
 -- ==========================================
+-- SYSTEM WALLETS
+-- ==========================================
+INSERT INTO wallets (id, owner_id, category, type, currency, status)
+VALUES
+    -- EQUITY (id 1 - 10)
+    (1, 0, 'EQUITY', 'EQUITY_CAPITAL', 'VND', 'ACTIVE'),
+    (2, 0, 'EQUITY', 'REVENUE_MDR', 'VND', 'ACTIVE'),
+    (3, 0, 'EQUITY', 'MARKETING_PROMO_BUDGET', 'VND', 'ACTIVE'),
+
+    -- ASSET (id 11 - 50)
+    (11, 0, 'ASSET', 'BANK_VAULT', 'VND', 'ACTIVE'),             -- Vietcombank (VCB)
+    (12, 0, 'ASSET', 'BANK_VAULT', 'VND', 'ACTIVE'),             -- BIDV
+    (13, 0, 'ASSET', 'BANK_VAULT', 'VND', 'ACTIVE'),             -- VietinBank (CTG)
+    (14, 0, 'ASSET', 'BANK_VAULT', 'VND', 'ACTIVE'),             -- Agribank
+    (15, 0, 'ASSET', 'BANK_VAULT', 'VND', 'ACTIVE'),             -- Techcombank (TCB)
+
+    -- INTERNAL_TECHNICAL (id 51 - 100)
+    -- Reserve account for P2P transfers
+    (51, 0, 'INTERNAL_TECHNICAL', 'RESERVE_ACCOUNT', 'VND', 'ACTIVE'),
+
+    -- LIABILITY (id 101 - 1000)
+    -- PENDING transactions (e.g., topup, withdraw, transfer) are reserved here until they are completed
+    (101, 0, 'LIABILITY', 'SUSPENSE_ACCOUNT', 'VND', 'ACTIVE');
+
+-- ==========================================
 -- 1. WALLETS (10 records - one per user)
 -- ==========================================
+
 -- System reserve wallet — holds funds earmarked by reserve(); never used for P2P transfers
 INSERT INTO wallets (id, owner_id, type, currency, status)
-VALUES (1, 0, 'SYSTEM', 'VND', 'ACTIVE');
+VALUES (1001, 1, 'USER_WALLET', 'VND', 'ACTIVE'), -- User 1
+       (1002, 2, 'USER_WALLET', 'VND', 'ACTIVE'), -- User 2
+       (1003, 3, 'USER_WALLET', 'VND', 'ACTIVE'), -- User 3
+       (1004, 4, 'USER_WALLET', 'VND', 'ACTIVE'), -- User 4
+       (1005, 5, 'USER_WALLET', 'VND', 'ACTIVE'), -- User 5
+       (1006, 6, 'USER_WALLET', 'VND', 'ACTIVE'), -- User 6
+       (1007, 7, 'USER_WALLET', 'VND', 'ACTIVE'), -- User 7
+       (1008, 8, 'USER_WALLET', 'VND', 'ACTIVE'), -- User 8
+       (1009, 9, 'USER_WALLET', 'VND', 'ACTIVE'), -- User 9: no transactions yet
+       (1010, 10, 'USER_WALLET', 'VND', 'ACTIVE');-- User 10: no transactions yet
 
-INSERT INTO wallets (id, owner_id, type, currency, status)
-VALUES (1001, 1, 'USER', 'VND', 'ACTIVE'),  -- User 1
-       (1002, 2, 'USER', 'VND', 'ACTIVE'),  -- User 2
-       (1003, 3, 'USER', 'VND', 'ACTIVE'),  -- User 3
-       (1004, 4, 'USER', 'VND', 'ACTIVE'),  -- User 4
-       (1005, 5, 'USER', 'VND', 'ACTIVE'),  -- User 5
-       (1006, 6, 'USER', 'VND', 'ACTIVE'),  -- User 6
-       (1007, 7, 'USER', 'VND', 'ACTIVE'),  -- User 7
-       (1008, 8, 'USER', 'VND', 'ACTIVE'),  -- User 8
-       (1009, 9, 'USER', 'VND', 'ACTIVE'),  -- User 9: no transactions yet
-       (1010, 10, 'USER', 'VND', 'ACTIVE'); -- User 10: no transactions yet
 
 -- ==========================================
--- 2. TRANSACTIONS (20 records)
--- Pattern: Mix of transfers, topups, and payments
+-- 2. TRANSACTIONS
+-- Pattern: Mix of transfers, topups, withdrawals and payments
+-- ==========================================
+
+-- SYSTEM TOP-UPS (5 records - 2B VND each)
+INSERT INTO transactions (id, source_wallet_id, destination_wallet_id, amount, currency, type, status, idempotency_key)
+VALUES
+    (101, 1, 11, 2000000000, 'VND', 'TOPUP', 'SUCCESS', 'sys-init-vcb-2b'),
+    (102, 1, 12, 2000000000, 'VND', 'TOPUP', 'SUCCESS', 'sys-init-bidv-2b'),
+    (103, 1, 13, 2000000000, 'VND', 'TOPUP', 'SUCCESS', 'sys-init-ctg-2b'),
+    (104, 1, 14, 2000000000, 'VND', 'TOPUP', 'SUCCESS', 'sys-init-agri-2b'),
+    (105, 1, 15, 2000000000, 'VND', 'TOPUP', 'SUCCESS', 'sys-init-tcb-2b');
+
+-- USER TOP-UPS (10 records - 50M VND each)
+INSERT INTO transactions (id, source_wallet_id, destination_wallet_id, amount, currency, type, status, idempotency_key)
+VALUES
+    (201, 11, 1001, 50000000, 'VND', 'TOPUP', 'SUCCESS', 'user-topup-1001'),
+    (202, 11, 1002, 50000000, 'VND', 'TOPUP', 'SUCCESS', 'user-topup-1002'),
+    (203, 11, 1003, 50000000, 'VND', 'TOPUP', 'SUCCESS', 'user-topup-1003'),
+    (204, 11, 1004, 50000000, 'VND', 'TOPUP', 'SUCCESS', 'user-topup-1004'),
+    (205, 11, 1005, 50000000, 'VND', 'TOPUP', 'SUCCESS', 'user-topup-1005'),
+    (206, 11, 1006, 50000000, 'VND', 'TOPUP', 'SUCCESS', 'user-topup-1006'),
+    (207, 11, 1007, 50000000, 'VND', 'TOPUP', 'SUCCESS', 'user-topup-1007'),
+    (208, 11, 1008, 50000000, 'VND', 'TOPUP', 'SUCCESS', 'user-topup-1008'),
+    (209, 11, 1009, 50000000, 'VND', 'TOPUP', 'SUCCESS', 'user-topup-1009'),
+    (210, 11, 1010, 50000000, 'VND', 'TOPUP', 'SUCCESS', 'user-topup-1010');
+
+-- USER TRANSACTIONS (20 records - mix of transfers, payments, and bill payments)
 -- Amounts: 100k - 1M VND
--- ==========================================
 INSERT INTO transactions (source_wallet_id, destination_wallet_id, amount, currency, type, status, idempotency_key)
 VALUES
     -- Tx 1: User 1 → User 2 (250k movie ticket)
@@ -93,86 +142,139 @@ VALUES
 -- DEBIT: source wallet loses money
 -- CREDIT: destination wallet gains money
 -- ==========================================
+
+-- 3.1. Ledger Entries for SYSTEM TOP-UPS (5 records)
+INSERT INTO ledger_entries (transaction_id, wallet_id, entry_type, amount, status, idempotency_key)
+VALUES
+    (101, 11, 'DEBIT',  2000000000, 'POSTED', 'ledger-init-vcb-debit'),
+    (101, 1,  'CREDIT', 2000000000, 'POSTED', 'ledger-init-vcb-credit'),
+
+    (102, 12, 'DEBIT',  2000000000, 'POSTED', 'ledger-init-bidv-debit'),
+    (102, 1,  'CREDIT', 2000000000, 'POSTED', 'ledger-init-bidv-credit'),
+
+    (103, 13, 'DEBIT',  2000000000, 'POSTED', 'ledger-init-ctg-debit'),
+    (103, 1,  'CREDIT', 2000000000, 'POSTED', 'ledger-init-ctg-credit'),
+
+    (104, 14, 'DEBIT',  2000000000, 'POSTED', 'ledger-init-agri-debit'),
+    (104, 1,  'CREDIT', 2000000000, 'POSTED', 'ledger-init-agri-credit'),
+
+    (105, 15, 'DEBIT',  2000000000, 'POSTED', 'ledger-init-tcb-debit'),
+    (105, 1,  'CREDIT', 2000000000, 'POSTED', 'ledger-init-tcb-credit');
+
+-- 3.2. Ledger Entries for USER TOP-UPS (10 records)
+INSERT INTO ledger_entries (transaction_id, wallet_id, entry_type, amount, status, idempotency_key)
+VALUES
+    (201, 11,   'DEBIT', 50000000, 'POSTED', 'ledger-topup-1001-vcb'),
+    (201, 1001, 'CREDIT', 50000000, 'POSTED', 'ledger-topup-1001-user'),
+
+    (202, 11,   'DEBIT', 50000000, 'POSTED', 'ledger-topup-1002-vcb'),
+    (202, 1002, 'CREDIT', 50000000, 'POSTED', 'ledger-topup-1002-user'),
+
+    (203, 11,   'DEBIT', 50000000, 'POSTED', 'ledger-topup-1003-vcb'),
+    (203, 1003, 'CREDIT', 50000000, 'POSTED', 'ledger-topup-1003-user'),
+
+    (204, 11,   'DEBIT', 50000000, 'POSTED', 'ledger-topup-1004-vcb'),
+    (204, 1004, 'CREDIT', 50000000, 'POSTED', 'ledger-topup-1004-user'),
+
+    (205, 11,   'DEBIT', 50000000, 'POSTED', 'ledger-topup-1005-vcb'),
+    (205, 1005, 'CREDIT', 50000000, 'POSTED', 'ledger-topup-1005-user'),
+
+    (206, 11,   'DEBIT', 50000000, 'POSTED', 'ledger-topup-1006-vcb'),
+    (206, 1006, 'CREDIT', 50000000, 'POSTED', 'ledger-topup-1006-user'),
+
+    (207, 11,   'DEBIT', 50000000, 'POSTED', 'ledger-topup-1007-vcb'),
+    (207, 1007, 'CREDIT', 50000000, 'POSTED', 'ledger-topup-1007-user'),
+
+    (208, 11,   'DEBIT', 50000000, 'POSTED', 'ledger-topup-1008-vcb'),
+    (208, 1008, 'CREDIT', 50000000, 'POSTED', 'ledger-topup-1008-user'),
+
+    (209, 11,   'DEBIT', 50000000, 'POSTED', 'ledger-topup-1009-vcb'),
+    (209, 1009, 'CREDIT', 50000000, 'POSTED', 'ledger-topup-1009-user'),
+
+    (210, 11,   'DEBIT', 50000000, 'POSTED', 'ledger-topup-1010-vcb'),
+    (210, 1010, 'CREDIT', 50000000, 'POSTED', 'ledger-topup-1010-user');
+
+-- 3.3. Ledger Entries for USER TRANSACTIONS (20 records × 2 = 40 records)
 INSERT INTO ledger_entries (transaction_id, wallet_id, entry_type, amount, idempotency_key)
 VALUES
     -- Transaction 1 (250k: User1 → User2)
-    (1, 1001, 'DEBIT',  250000, '550e8400-e29b-41d4-a716-446655440001'),
+    (1, 1001, 'DEBIT', 250000, '550e8400-e29b-41d4-a716-446655440001'),
     (1, 1002, 'CREDIT', 250000, '550e8400-e29b-41d4-a716-446655440002'),
 
     -- Transaction 2 (150k: User2 → User3)
-    (2, 1002, 'DEBIT',  150000, '550e8400-e29b-41d4-a716-446655440003'),
+    (2, 1002, 'DEBIT', 150000, '550e8400-e29b-41d4-a716-446655440003'),
     (2, 1003, 'CREDIT', 150000, '550e8400-e29b-41d4-a716-446655440004'),
 
     -- Transaction 3 (500k: User3 → User4)
-    (3, 1003, 'DEBIT',  500000, '550e8400-e29b-41d4-a716-446655440005'),
+    (3, 1003, 'DEBIT', 500000, '550e8400-e29b-41d4-a716-446655440005'),
     (3, 1004, 'CREDIT', 500000, '550e8400-e29b-41d4-a716-446655440006'),
 
     -- Transaction 4 (200k: User4 → User5)
-    (4, 1004, 'DEBIT',  200000, '550e8400-e29b-41d4-a716-446655440007'),
+    (4, 1004, 'DEBIT', 200000, '550e8400-e29b-41d4-a716-446655440007'),
     (4, 1005, 'CREDIT', 200000, '550e8400-e29b-41d4-a716-446655440008'),
 
     -- Transaction 5 (300k: User1 → User5)
-    (5, 1001, 'DEBIT',  300000, '550e8400-e29b-41d4-a716-446655440009'),
+    (5, 1001, 'DEBIT', 300000, '550e8400-e29b-41d4-a716-446655440009'),
     (5, 1005, 'CREDIT', 300000, '550e8400-e29b-41d4-a716-446655440010'),
 
     -- Transaction 6 (100k: User2 → User4)
-    (6, 1002, 'DEBIT',  100000, '550e8400-e29b-41d4-a716-446655440011'),
+    (6, 1002, 'DEBIT', 100000, '550e8400-e29b-41d4-a716-446655440011'),
     (6, 1004, 'CREDIT', 100000, '550e8400-e29b-41d4-a716-446655440012'),
 
     -- Transaction 7 (750k: User5 → User6)
-    (7, 1005, 'DEBIT',  750000, '550e8400-e29b-41d4-a716-446655440013'),
+    (7, 1005, 'DEBIT', 750000, '550e8400-e29b-41d4-a716-446655440013'),
     (7, 1006, 'CREDIT', 750000, '550e8400-e29b-41d4-a716-446655440014'),
 
     -- Transaction 8 (180k: User6 → User7)
-    (8, 1006, 'DEBIT',  180000, '550e8400-e29b-41d4-a716-446655440015'),
+    (8, 1006, 'DEBIT', 180000, '550e8400-e29b-41d4-a716-446655440015'),
     (8, 1007, 'CREDIT', 180000, '550e8400-e29b-41d4-a716-446655440016'),
 
     -- Transaction 9 (420k: User3 → User7)
-    (9, 1003, 'DEBIT',  420000, '550e8400-e29b-41d4-a716-446655440017'),
+    (9, 1003, 'DEBIT', 420000, '550e8400-e29b-41d4-a716-446655440017'),
     (9, 1007, 'CREDIT', 420000, '550e8400-e29b-41d4-a716-446655440018'),
 
     -- Transaction 10 (600k: User7 → User8)
-    (10, 1007, 'DEBIT',  600000, '550e8400-e29b-41d4-a716-446655440019'),
+    (10, 1007, 'DEBIT', 600000, '550e8400-e29b-41d4-a716-446655440019'),
     (10, 1008, 'CREDIT', 600000, '550e8400-e29b-41d4-a716-446655440020'),
 
     -- Transaction 11 (850k: User1 → User6)
-    (11, 1001, 'DEBIT',  850000, '550e8400-e29b-41d4-a716-446655440021'),
+    (11, 1001, 'DEBIT', 850000, '550e8400-e29b-41d4-a716-446655440021'),
     (11, 1006, 'CREDIT', 850000, '550e8400-e29b-41d4-a716-446655440022'),
 
     -- Transaction 12 (350k: User4 → User8)
-    (12, 1004, 'DEBIT',  350000, '550e8400-e29b-41d4-a716-446655440023'),
+    (12, 1004, 'DEBIT', 350000, '550e8400-e29b-41d4-a716-446655440023'),
     (12, 1008, 'CREDIT', 350000, '550e8400-e29b-41d4-a716-446655440024'),
 
     -- Transaction 13 (275k: User2 → User7)
-    (13, 1002, 'DEBIT',  275000, '550e8400-e29b-41d4-a716-446655440025'),
+    (13, 1002, 'DEBIT', 275000, '550e8400-e29b-41d4-a716-446655440025'),
     (13, 1007, 'CREDIT', 275000, '550e8400-e29b-41d4-a716-446655440026'),
 
     -- Transaction 14 (520k: User5 → User3)
-    (14, 1005, 'DEBIT',  520000, '550e8400-e29b-41d4-a716-446655440027'),
+    (14, 1005, 'DEBIT', 520000, '550e8400-e29b-41d4-a716-446655440027'),
     (14, 1003, 'CREDIT', 520000, '550e8400-e29b-41d4-a716-446655440028'),
 
     -- Transaction 15 (180k: User8 → User1)
-    (15, 1008, 'DEBIT',  180000, '550e8400-e29b-41d4-a716-446655440029'),
+    (15, 1008, 'DEBIT', 180000, '550e8400-e29b-41d4-a716-446655440029'),
     (15, 1001, 'CREDIT', 180000, '550e8400-e29b-41d4-a716-446655440030'),
 
     -- Transaction 16 (450k: User6 → User2)
-    (16, 1006, 'DEBIT',  450000, '550e8400-e29b-41d4-a716-446655440031'),
+    (16, 1006, 'DEBIT', 450000, '550e8400-e29b-41d4-a716-446655440031'),
     (16, 1002, 'CREDIT', 450000, '550e8400-e29b-41d4-a716-446655440032'),
 
     -- Transaction 17 (155k: User3 → User8)
-    (17, 1003, 'DEBIT',  155000, '550e8400-e29b-41d4-a716-446655440033'),
+    (17, 1003, 'DEBIT', 155000, '550e8400-e29b-41d4-a716-446655440033'),
     (17, 1008, 'CREDIT', 155000, '550e8400-e29b-41d4-a716-446655440034'),
 
     -- Transaction 18 (999999: User7 → User4)
-    (18, 1007, 'DEBIT',  999999, '550e8400-e29b-41d4-a716-446655440035'),
+    (18, 1007, 'DEBIT', 999999, '550e8400-e29b-41d4-a716-446655440035'),
     (18, 1004, 'CREDIT', 999999, '550e8400-e29b-41d4-a716-446655440036'),
 
     -- Transaction 19 (345k: User2 → User6)
-    (19, 1002, 'DEBIT',  345000, '550e8400-e29b-41d4-a716-446655440037'),
+    (19, 1002, 'DEBIT', 345000, '550e8400-e29b-41d4-a716-446655440037'),
     (19, 1006, 'CREDIT', 345000, '550e8400-e29b-41d4-a716-446655440038'),
 
     -- Transaction 20 (678k: User4 → User3)
-    (20, 1004, 'DEBIT',  678000, '550e8400-e29b-41d4-a716-446655440039'),
+    (20, 1004, 'DEBIT', 678000, '550e8400-e29b-41d4-a716-446655440039'),
     (20, 1003, 'CREDIT', 678000, '550e8400-e29b-41d4-a716-446655440040');
 
 -- ==========================================
