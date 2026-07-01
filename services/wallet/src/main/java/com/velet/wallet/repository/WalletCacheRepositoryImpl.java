@@ -1,12 +1,14 @@
 package com.velet.wallet.repository;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.velet.wallet.dto.cache.BalanceCounter;
 import com.velet.wallet.dto.cache.ReservationRecord;
 import com.velet.wallet.dto.response.WalletInfo;
 import com.velet.wallet.exception.AppException;
 import com.velet.wallet.exception.ErrorCode;
+import com.velet.wallet.utils.RedisHashCodec;
+import com.velet.wallet.models.BalanceComponents;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -18,6 +20,7 @@ import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -29,41 +32,46 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
     private final StringRedisTemplate stringRedisTemplate;
     private final RedisTemplate<String, Object> hashRedisTemplate;
     private final ObjectMapper objectMapper;
+    private final RedisScript<Long> walletIncrementCounterScript;
+    private final RedisHashCodec redisHashCodec;
 
-    private final RedisScript<Long> walletDeductScript;
-    private final RedisScript<Long> walletAddScript;
+    private static final Duration LOCK_TTL        = Duration.ofSeconds(10);
+    private static final Duration ACCOUNT_TTL     = Duration.ofMinutes(5);
+    private static final Duration RESERVATION_TTL = Duration.ofMinutes(5);
+    private static final Duration BALANCE_TTL     = Duration.ofMinutes(5);
 
-    private static final Duration LOCK_TTL = Duration.ofSeconds(10);
-    private static final Duration ACCOUNT_TTL = Duration.ofMinutes(10);
-    private static final Duration RESERVATION_TTL = Duration.ofMinutes(15);
-
-    private static final String LOCK_PREFIX = "lock:wallet:";
-    private static final String WALLET_PREFIX = "wallet:";
+    private static final String LOCK_PREFIX        = "lock:wallet:";
+    private static final String ACCOUNT_PREFIX     = "wallet:";
+    private static final String BALANCE_PREFIX     = "wallet:balance:";
     private static final String RESERVATION_PREFIX = "wallet:reserve:idempotency:";
+
+    private static final String FIELD_POSTED_DEBITS   = "posted_debits";
+    private static final String FIELD_POSTED_CREDITS  = "posted_credits";
+    private static final String FIELD_PENDING_DEBITS  = "pending_debits";
+    private static final String FIELD_PENDING_CREDITS = "pending_credits";
 
     @Override
     public Optional<WalletInfo> findAccount(String walletId) {
-        Map<Object, Object> walletMap = hashRedisTemplate.opsForHash().entries(WALLET_PREFIX + walletId);
+        Map<Object, Object> walletMap = hashRedisTemplate.opsForHash().entries(ACCOUNT_PREFIX + walletId);
         if (walletMap == null || walletMap.isEmpty()) return Optional.empty();
         try {
-            return Optional.of(objectMapper.readValue(objectMapper.writeValueAsString(walletMap), WalletInfo.class));
-        } catch (JsonProcessingException e) {
-            log.warn("cache.deserialize.failed walletId={}", walletId, e);
-            return Optional.empty();
+            return Optional.of(redisHashCodec.fromHash(walletMap, WalletInfo.class));
+        } catch (Exception e) {
+            log.error("cache.deserialize.failed walletId={}", walletId, e);
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
     }
 
     @Override
     public void saveAccount(String walletId, WalletInfo wallet) {
-        Map<String, Object> walletMap = objectMapper.convertValue(wallet, new TypeReference<Map<String, Object>>() {});
-
-        hashRedisTemplate.opsForHash().putAll(WALLET_PREFIX + walletId, walletMap);
-        hashRedisTemplate.expire(WALLET_PREFIX + walletId, ACCOUNT_TTL);
+        Map<String, String> hash = redisHashCodec.toHash(wallet);
+        hashRedisTemplate.opsForHash().putAll(ACCOUNT_PREFIX + walletId, hash);
+        hashRedisTemplate.expire(ACCOUNT_PREFIX + walletId, ACCOUNT_TTL);
     }
 
     @Override
     public void evictAccount(String walletId) {
-        hashRedisTemplate.delete(WALLET_PREFIX + walletId);
+        hashRedisTemplate.delete(ACCOUNT_PREFIX + walletId);
     }
 
     @Override
@@ -79,92 +87,68 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
     }
 
     @Override
-    public boolean deductBalance(Long walletId, Long amount) {
-        String cacheKey = WALLET_PREFIX + walletId;
+    public void increaseWalletBalance(String walletId, BigDecimal amount) {
+        String key = ACCOUNT_PREFIX + walletId;
 
-        Long result = hashRedisTemplate.execute(
-                walletDeductScript,
-                Collections.singletonList(cacheKey), // KEYS[1]
-                String.valueOf(amount)               // ARGV[1]
-        );
-
-        if (result == null) {
-            log.error("Redis script execution failed for deductBalance walletId={} amount={}", walletId, amount);
-            throw new AppException(ErrorCode.REDIS_EXECUTION_FAILED);
-        }
-
-        switch (result.intValue()) {
-            case 1:
-                return true;
-            case -1:
-                throw new AppException(ErrorCode.WALLET_NOT_FOUND);
-            case -2:
-                throw new AppException(ErrorCode.WALLET_INACTIVE);
-            case -3:
-                throw new AppException(ErrorCode.INSUFFICIENT_FUNDS);
-            default:
-                log.error("Unexpected result from Redis script for deductBalance walletId={} amount={} result={}",
-                          walletId, amount, result);
-                throw new AppException(ErrorCode.REDIS_EXECUTION_FAILED);
-        }
+        hashRedisTemplate.opsForHash().increment(key, "availableBalance", amount.longValueExact());
+        hashRedisTemplate.expire(key, ACCOUNT_TTL);
     }
 
     @Override
-    public boolean addBalance(Long walletId, Long amount) {
-        String cacheKey = WALLET_PREFIX + walletId;
-
-        Long result = hashRedisTemplate.execute(
-                walletAddScript,
-                Collections.singletonList(cacheKey), // KEYS[1]
-                String.valueOf(amount)               // ARGV[1]
+    public void incrementCounter(String walletId, String field, long delta) {
+        hashRedisTemplate.execute(
+                walletIncrementCounterScript,
+                Collections.singletonList(BALANCE_PREFIX + walletId),
+                field,
+                String.valueOf(delta),
+                String.valueOf(BALANCE_TTL.getSeconds())
         );
+    }
 
-        if (result == null) {
-            log.error("Redis script execution failed for addBalance walletId={} amount={}", walletId, amount);
-            throw new AppException(ErrorCode.REDIS_EXECUTION_FAILED);
-        }
+    @Override
+    public Optional<BalanceComponents> getCounters(String walletId) {
+        String key = BALANCE_PREFIX + walletId;
+        List<Object> values = hashRedisTemplate.opsForHash().multiGet(
+                key,
+                List.of(FIELD_POSTED_DEBITS, FIELD_POSTED_CREDITS, FIELD_PENDING_DEBITS, FIELD_PENDING_CREDITS)
+        );
+        if (values == null || values.stream().allMatch(v -> v == null)) return Optional.empty();
 
-        switch (result.intValue()) {
-            case 1:
-                return true;
-            case -1:
-                throw new AppException(ErrorCode.WALLET_NOT_FOUND);
-            case -2:
-                throw new AppException(ErrorCode.WALLET_INACTIVE);
-            default:
-                log.error("Unexpected result from Redis script for addBalance walletId={} amount={} result={}",
-                          walletId, amount, result);
-                throw new AppException(ErrorCode.REDIS_EXECUTION_FAILED);
-        }
+        return Optional.of(new BalanceComponents(
+                toLong(values.get(0)),
+                toLong(values.get(1)),
+                toLong(values.get(2)),
+                toLong(values.get(3))
+        ));
+    }
+
+    @Override
+    public void saveCounters(String walletId, BalanceCounter components) {
+        String key = BALANCE_PREFIX + walletId;
+        hashRedisTemplate.opsForHash().putAll(key, redisHashCodec.toHash(components));
+        hashRedisTemplate.expire(key, BALANCE_TTL);
     }
 
     @Override
     public boolean reserve(String walletId, BigDecimal amount) {
-        String key = WALLET_PREFIX + walletId;
+        String key = ACCOUNT_PREFIX + walletId;
         long amountCents = amount.longValueExact();
 
         Object availableBalanceObj = hashRedisTemplate.opsForHash().get(key, "availableBalance");
-
-        if (availableBalanceObj == null) {
-            throw new AppException(ErrorCode.WALLET_CACHE_MISS);
-        }
+        if (availableBalanceObj == null) throw new AppException(ErrorCode.WALLET_CACHE_MISS);
 
         long available = ((Number) availableBalanceObj).longValue();
-        if (available < amountCents) {
-            return false;
-        }
+        if (available < amountCents) return false;
 
         hashRedisTemplate.opsForHash().increment(key, "availableBalance", -amountCents);
         hashRedisTemplate.opsForHash().increment(key, "pendingBalance", amountCents);
-
         return true;
     }
 
     @Override
     public void release(String walletId, BigDecimal amount) {
-        String key = WALLET_PREFIX + walletId;
+        String key = ACCOUNT_PREFIX + walletId;
         long amountCents = amount.longValueExact();
-
         hashRedisTemplate.opsForHash().increment(key, "availableBalance", amountCents);
         hashRedisTemplate.opsForHash().increment(key, "pendingBalance", -amountCents);
     }
@@ -174,7 +158,6 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
         String key = RESERVATION_PREFIX + idempotencyKey;
         String json = stringRedisTemplate.opsForValue().get(key);
         if (json == null) return Optional.empty();
-
         try {
             return Optional.of(objectMapper.readValue(json, ReservationRecord.class));
         } catch (JsonProcessingException e) {
@@ -186,10 +169,9 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
     public void saveReservationRecord(String idempotencyKey, ReservationRecord record) {
         String key = RESERVATION_PREFIX + idempotencyKey;
         try {
-            String json = objectMapper.writeValueAsString(record);
-            stringRedisTemplate.opsForValue().set(key, json, RESERVATION_TTL);
+            stringRedisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(record), RESERVATION_TTL);
         } catch (JsonProcessingException e) {
-            log.error("Failed to serialize ReservationRecord for idempotencyKey={}", idempotencyKey, e);
+            log.error("cache.serialize.failed idempotencyKey={}", idempotencyKey, e);
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
     }
@@ -201,20 +183,20 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
         if (existing.isEmpty()) return;
 
         ReservationRecord record = existing.get();
-        ReservationRecord updatedRecord = new ReservationRecord(
-                newStatus,
-                record.walletId(),
-                record.amount(),
-                record.reservedAt(),
-                Instant.now().toEpochMilli()
+        ReservationRecord updated = new ReservationRecord(
+                newStatus, record.walletId(), record.amount(),
+                record.reservedAt(), Instant.now().toEpochMilli()
         );
-
         try {
-            String json = objectMapper.writeValueAsString(updatedRecord);
-            stringRedisTemplate.opsForValue().set(key, json);
+            stringRedisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(updated));
         } catch (JsonProcessingException e) {
-            log.error("Failed to serialize updated ReservationRecord for idempotencyKey={}", idempotencyKey, e);
+            log.error("cache.serialize.failed idempotencyKey={}", idempotencyKey, e);
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private long toLong(Object value) {
+        if (value == null) return 0L;
+        return Long.parseLong((String) value);
     }
 }

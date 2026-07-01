@@ -1,5 +1,6 @@
 package com.velet.wallet.service.impl;
 
+import com.velet.wallet.dto.cache.BalanceCounter;
 import com.velet.wallet.dto.cache.ReservationRecord;
 import com.velet.wallet.dto.request.ReleaseBalanceRequest;
 import com.velet.wallet.dto.request.ReserveBalanceRequest;
@@ -10,6 +11,7 @@ import com.velet.wallet.dto.response.WalletInfo;
 import com.velet.wallet.dto.response.TransferResponse;
 import com.velet.wallet.exception.AppException;
 import com.velet.wallet.exception.ErrorCode;
+import com.velet.wallet.models.BalanceComponents;
 import com.velet.wallet.models.Wallet;
 import com.velet.wallet.models.enums.AccountStatus;
 import com.velet.wallet.models.enums.ReservationStatus;
@@ -23,6 +25,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Optional;
@@ -49,8 +52,8 @@ public class WalletServiceImpl implements WalletService {
     }
 
     /**
-     * transfer flow: validation → distributed locking → balance check →
-     * delegates DB writes to WalletServiceExecutor → release lock.
+     * transfer flow: validation → distributed locking → Postgres-authoritative balance check →
+     * delegates DB writes to WalletServiceExecutor → best-effort cache update → release lock.
      */
     @Override
     @Observed(name = "wallet.transfer")
@@ -76,36 +79,38 @@ public class WalletServiceImpl implements WalletService {
 
         WalletInfo receiver = getWallet(request.toWalletId());
 
-        // Always acquire smaller walletId lock first to prevent deadlock
-        String firstLock = request.fromWalletId().compareTo(request.toWalletId()) < 0
+        // Early-reject: read balance cache to fail-fast on obvious insufficient-fund cases.
+        Optional<BalanceComponents> cachedBalance = cacheRepo.getCounters(request.fromWalletId());
+        if (cachedBalance.isPresent() &&
+                cachedBalance.get().available() < request.amount().longValueExact()) {
+            throw new AppException(ErrorCode.INSUFFICIENT_FUNDS);
+        }
+
+        // Acquire Redis locks smallest-ID-first to prevent deadlock between concurrent transfers.
+        String firstLock  = request.fromWalletId().compareTo(request.toWalletId()) < 0
                 ? request.fromWalletId() : request.toWalletId();
         String secondLock = request.fromWalletId().compareTo(request.toWalletId()) < 0
                 ? request.toWalletId() : request.fromWalletId();
 
-        boolean firstAcquire = false;
+        boolean firstAcquire  = false;
         boolean secondAcquire = false;
-
-        boolean isDeducted = false;
-        boolean isAdded = false;
 
         try {
             acquireOrThrow(firstLock);
             firstAcquire = true;
-
             acquireOrThrow(secondLock);
             secondAcquire = true;
 
             log.info("transfer.lock.acquired firstLock={} secondLock={}", firstLock, secondLock);
 
-            isDeducted = cacheRepo.deductBalance(sender.walletId(), request.amount().longValueExact());
-            isAdded = cacheRepo.addBalance(receiver.walletId(), request.amount().longValueExact());
-
-//            checkSufficientBalance(sender, request.amount());
-
             long startMs = System.currentTimeMillis();
-            TransferResponse response = walletServiceExecutor.transfer(sender.walletId(), receiver.walletId(), request);
+            TransferResponse response = walletServiceExecutor.transfer(
+                    sender.walletId(), receiver.walletId(), request
+            );
             log.info("transfer.completed transactionId={} durationMs={}",
                      response.transactionId(), System.currentTimeMillis() - startMs);
+
+            updateCacheBalanceAfterTransfer(request.fromWalletId(), request.toWalletId(), request.amount());
 
             cacheRepo.releaseLock(firstLock);
             cacheRepo.releaseLock(secondLock);
@@ -113,22 +118,8 @@ public class WalletServiceImpl implements WalletService {
 
         } catch (AppException e) {
             log.error("transfer.failed reason={}", e.getMessage(), e);
-
-            // compensate cache changes if DB write failed
-            try {
-                if (isDeducted) cacheRepo.addBalance(sender.walletId(), request.amount().longValueExact());
-                if (isAdded) cacheRepo.deductBalance(receiver.walletId(), request.amount().longValueExact());
-            } catch (Exception compensateError) {
-                log.error("transfer.compensate.FAILED senderId={} receiverId={} " +
-                          "originalError={} compensateError={}",
-                          sender.walletId(), receiver.walletId(), e.getMessage(), compensateError.getMessage());
-                // TODO: Handle compensate FAILED
-            }
-
-            if (firstAcquire) cacheRepo.releaseLock(firstLock);
+            if (firstAcquire)  cacheRepo.releaseLock(firstLock);
             if (secondAcquire) cacheRepo.releaseLock(secondLock);
-
-            log.error("transfer.failed reason={}", e.getMessage(), e);
             throw e;
         }
     }
@@ -214,25 +205,61 @@ public class WalletServiceImpl implements WalletService {
             throw new AppException(ErrorCode.WALLET_INACTIVE);
         }
 
+        WalletRepository.BalanceRow row = walletRepository.computeBalanceRaw(Long.parseLong(walletId));
+        BalanceComponents balance = new BalanceComponents(
+                row.getPostedDebits(), row.getPostedCredits(),
+                row.getPendingDebits(), row.getPendingCredits()
+        );
+
         WalletInfo info = new WalletInfo(
                 wallet.getId(),
                 wallet.getOwnerId(),
                 wallet.getType(),
-                wallet.getAvailableBalance(),
-                wallet.getPendingBalance(),
+                balance.available(),
+                balance.pendingDebits(),
                 wallet.getCurrency(),
                 wallet.getStatus()
         );
+
         cacheRepo.saveAccount(walletId, info);
+        cacheRepo.saveCounters(walletId, createBalanceCounter(balance));
+
         return info;
     }
 
-//    private void checkSufficientBalance(WalletInfo sender, BigDecimal amount) {
-//        long effectiveBalance = sender.availableBalance() - sender.pendingBalance();
-//        if (effectiveBalance < amount.longValueExact()) {
-//            throw new AppException(ErrorCode.INSUFFICIENT_FUNDS);
-//        }
-//    }
+    /**
+     * Called after Postgres transaction commits successfully.
+     * Increments the 2-counter balance cache to keep Redis in sync without a round-trip to DB.
+     * Failure here is safe to ignore — cache will self-heal on the next miss via computeBalance().
+     */
+    private void updateCacheBalanceAfterTransfer(String fromWalletId, String toWalletId, BigDecimal amount) {
+        updateAvailableBalances(fromWalletId, toWalletId, amount);
+        updateCachePostedCounters(fromWalletId, toWalletId, amount.longValueExact());
+    }
+
+    private void updateAvailableBalances(String fromWalletId, String toWalletId, BigDecimal amount) {
+        cacheRepo.increaseWalletBalance(fromWalletId, amount.negate());
+        cacheRepo.increaseWalletBalance(toWalletId, amount);
+    }
+
+    private void updateCachePostedCounters(String senderId, String receiverId, long amountCents) {
+        try {
+            cacheRepo.incrementCounter(senderId,   "postedDebits",  amountCents);
+            cacheRepo.incrementCounter(receiverId, "postedCredits", amountCents);
+        } catch (Exception e) {
+            log.warn("cache.update.failed senderId={} receiverId={} — will self-heal on cache miss",
+                     senderId, receiverId, e);
+        }
+    }
+
+    private BalanceCounter createBalanceCounter(BalanceComponents balance) {
+        return new BalanceCounter(
+                String.valueOf(balance.postedDebits()),
+                String.valueOf(balance.postedCredits()),
+                String.valueOf(balance.pendingDebits()),
+                String.valueOf(balance.pendingCredits())
+        );
+    }
 
     private void acquireOrThrow(String walletId) {
         int[] backoffMs = {100, 200, 500};
@@ -242,11 +269,9 @@ public class WalletServiceImpl implements WalletService {
                 Thread.sleep(backoff);
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
-
                 throw new AppException(ErrorCode.LOCK_ACQUISITION_FAILED);
             }
         }
-
         log.warn("transfer.lock.failed walletId={} after {} attempts", walletId, backoffMs.length);
         throw new AppException(ErrorCode.LOCK_ACQUISITION_FAILED);
     }

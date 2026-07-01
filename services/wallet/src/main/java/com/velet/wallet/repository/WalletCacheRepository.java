@@ -1,6 +1,8 @@
 package com.velet.wallet.repository;
 
+import com.velet.wallet.dto.cache.BalanceCounter;
 import com.velet.wallet.dto.cache.ReservationRecord;
+import com.velet.wallet.models.BalanceComponents;
 import com.velet.wallet.dto.response.WalletInfo;
 
 import java.math.BigDecimal;
@@ -14,13 +16,17 @@ public interface WalletCacheRepository {
 
     void evictAccount(String walletId);
 
-    boolean deductBalance(Long walletId, Long amount);
-
-    boolean addBalance(Long walletId, Long amount);
-
     boolean acquireLock(String walletId);
 
     void releaseLock(String walletId);
+
+    void increaseWalletBalance(String walletId, BigDecimal amount);
+
+    void incrementCounter(String walletId, String field, long delta);
+
+    Optional<BalanceComponents> getCounters(String walletId);
+
+    void saveCounters(String walletId, BalanceCounter components);
 
     boolean reserve(String walletId, BigDecimal amount);
 

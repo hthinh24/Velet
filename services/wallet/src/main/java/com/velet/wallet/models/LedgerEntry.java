@@ -1,12 +1,11 @@
 package com.velet.wallet.models;
 
 import com.velet.wallet.models.enums.EntryType;
+import com.velet.wallet.models.enums.LedgerEntryStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcType;
-import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.dialect.type.PostgreSQLEnumJdbcType;
-import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "ledger_entries")
@@ -38,8 +37,11 @@ public class LedgerEntry extends BaseCreatableEntity {
     @Column(name = "amount", nullable = false)
     private Long amount;
 
-    @Column(name = "running_balance", nullable = false)
-    private Long runningBalance;
+    @Enumerated(EnumType.STRING)
+    @JdbcType(PostgreSQLEnumJdbcType.class)
+    @Column(name = "status", nullable = false, columnDefinition = "entry_status")
+    @Builder.Default
+    private LedgerEntryStatus status = LedgerEntryStatus.POSTED;
 
     @Column(name = "idempotency_key", nullable = false, unique = true)
     private String idempotencyKey;
