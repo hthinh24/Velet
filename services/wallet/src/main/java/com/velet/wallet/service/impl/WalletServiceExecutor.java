@@ -3,15 +3,16 @@ package com.velet.wallet.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.velet.wallet.dto.request.TransferRequest;
-import com.velet.wallet.dto.response.WalletInfo;
 import com.velet.wallet.dto.response.TransferResponse;
 import com.velet.wallet.exception.AppException;
 import com.velet.wallet.exception.ErrorCode;
 import com.velet.wallet.models.Wallet;
 import com.velet.wallet.models.LedgerEntry;
+import com.velet.wallet.models.BalanceComponents;
 import com.velet.wallet.models.Outbox;
 import com.velet.wallet.models.Transaction;
 import com.velet.wallet.models.enums.EntryType;
+import com.velet.wallet.models.enums.LedgerEntryStatus;
 import com.velet.wallet.models.enums.TransactionStatus;
 import com.velet.wallet.models.enums.TransactionType;
 import com.velet.wallet.repository.LedgerRepository;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,9 +52,20 @@ public class WalletServiceExecutor {
     public TransferResponse transfer(Long senderId, Long receiverId, TransferRequest request) {
         long amountInCents = request.amount().longValueExact();
 
-        // 5a & 5b. Update Credit/Debit wallet
-        walletRepository.deductBalance(senderId, amountInCents);
-        walletRepository.addBalance(senderId, amountInCents);
+        // Acquire pessimistic write lock on both wallet rows to prevent race condition
+        walletRepository.findByIdWithLock(senderId)
+                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+        walletRepository.findByIdWithLock(receiverId)
+                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+
+        WalletRepository.BalanceRow row = walletRepository.computeBalanceRaw(senderId);
+        BalanceComponents balance = new BalanceComponents(
+                row.getPostedDebits(), row.getPostedCredits(),
+                row.getPendingDebits(), row.getPendingCredits()
+        );
+        if (balance.available() < amountInCents) {
+            throw new AppException(ErrorCode.INSUFFICIENT_FUNDS);
+        }
 
         Wallet senderWallet = walletRepository.getReferenceById(senderId);
         Wallet receiverWallet = walletRepository.getReferenceById(receiverId);
@@ -76,18 +89,15 @@ public class WalletServiceExecutor {
 
         Instant now = Instant.now();
 
-        // 5d. Insert LedgerEntry DEBIT (sender) 
+        // 5d. Insert LedgerEntry DEBIT (sender)
         // 5e. Insert LedgerEntry CREDIT (receiver)
-        Long senderNewBalance = senderWallet.getAvailableBalance() - senderWallet.getPendingBalance() - amountInCents;
-        Long receiverNewBalance = receiverWallet.getAvailableBalance() - receiverWallet.getPendingBalance() + amountInCents;
-
         ledgerRepository.saveAll(List.of(
             LedgerEntry.builder()
                 .transaction(transaction)
                 .wallet(senderWallet)
                 .entryType(EntryType.DEBIT)
                 .amount(amountInCents)
-                .runningBalance(senderNewBalance)
+                .status(LedgerEntryStatus.POSTED)
                 .idempotencyKey(generateLedgerIdempotentKey(request.idempotencyKey(), "debit"))
                 .build(),
             LedgerEntry.builder()
@@ -95,13 +105,14 @@ public class WalletServiceExecutor {
                 .wallet(receiverWallet)
                 .entryType(EntryType.CREDIT)
                 .amount(amountInCents)
-                .runningBalance(receiverNewBalance)
+                .status(LedgerEntryStatus.POSTED)
                 .idempotencyKey(generateLedgerIdempotentKey(request.idempotencyKey(), "credit"))
                 .build()
             ));
 
         // 5f. Create Outbox TRANSFER_COMPLETED
-        List<Outbox> events = List.of(
+        List<Outbox> events = new ArrayList<>();
+        events.add(
             Outbox.builder()
                 .aggregateId(transaction.getId())
                 .aggregateType("Transaction")

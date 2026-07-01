@@ -35,44 +35,18 @@ public class RedisConfig {
         template.setConnectionFactory(redisConnectionFactory);
 
         template.setKeySerializer(new StringRedisSerializer());
+        template.setValueSerializer(new StringRedisSerializer());
         template.setHashKeySerializer(new StringRedisSerializer());
-
-        PolymorphicTypeValidator typeValidator = BasicPolymorphicTypeValidator.builder()
-                                                                              .allowIfBaseType(Object.class)
-                                                                              .build();
-
-        ObjectMapper objectMapper = JsonMapper.builder()
-                                              .disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
-                                              .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                                              .enable(DeserializationFeature.USE_LONG_FOR_INTS)
-                                              .activateDefaultTyping(
-                                                      typeValidator,
-                                                      DefaultTyping.NON_FINAL,
-                                                      JsonTypeInfo.As.PROPERTY
-                                              )
-                                              .build();
-
-        GenericJacksonJsonRedisSerializer jsonSerializer = new GenericJacksonJsonRedisSerializer(objectMapper);
-
-        template.setValueSerializer(jsonSerializer);
-        template.setHashValueSerializer(jsonSerializer);
+        template.setHashValueSerializer(new StringRedisSerializer());
         template.afterPropertiesSet();
 
         return template;
     }
 
     @Bean
-    public RedisScript<Long> walletDeductScript() {
+    public RedisScript<Long> walletIncrementCounterScript() {
         DefaultRedisScript<Long> script = new DefaultRedisScript<>();
-        script.setLocation(new ClassPathResource("scripts/wallet_deduct.lua"));
-        script.setResultType(Long.class);
-        return script;
-    }
-
-    @Bean
-    public RedisScript<Long> walletAddScript() {
-        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
-        script.setLocation(new ClassPathResource("scripts/wallet_add.lua"));
+        script.setLocation(new ClassPathResource("scripts/wallet_increment_counter.lua"));
         script.setResultType(Long.class);
         return script;
     }
