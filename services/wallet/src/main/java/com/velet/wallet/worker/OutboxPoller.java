@@ -6,11 +6,14 @@ import com.velet.wallet.repository.OutboxRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpException;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,15 +41,25 @@ public class OutboxPoller {
         for (Outbox event : batch) {
             try {
                 String routingKey = buildRoutingKey(event);
-                rabbitTemplate.convertAndSend(
-                        RabbitMQConfig.WALLET_EXCHANGE,
-                        routingKey,
-                        event.getPayload(),
-                        message -> {
-                            message.getMessageProperties().setMessageId(String.valueOf(event.getId()));
-                            return message;
-                        }
-                );
+
+                MessageProperties props = new MessageProperties();
+                props.setContentType(MessageProperties.CONTENT_TYPE_JSON);
+                props.setMessageId(String.valueOf(event.getId()));
+
+                Message message = new Message(event.getPayload().getBytes(StandardCharsets.UTF_8), props);
+
+                rabbitTemplate.send(RabbitMQConfig.WALLET_EXCHANGE, routingKey, message);
+
+//                rabbitTemplate.convertAndSend(
+//                        RabbitMQConfig.WALLET_EXCHANGE,
+//                        routingKey,
+//                        event.getPayload(),
+//                        message -> {
+//                            message.getMessageProperties().setMessageId(String.valueOf(event.getId()));\
+//                            return message;
+//                        }
+//                );
+
                 successIds.add(event.getId());
             } catch (AmqpException ex) {
                 log.warn("Publish failed for outbox id={}, retryCount={}", event.getId(), event.getRetryCount(), ex);

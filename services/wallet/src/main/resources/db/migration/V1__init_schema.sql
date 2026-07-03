@@ -187,6 +187,17 @@ CREATE INDEX idx_outbox_status ON outbox (status) WHERE status = 'PENDING';
 CREATE INDEX idx_outbox_created_at ON outbox (created_at);
 
 -- ------------------------------------------------------------
+-- PROCESSED_EVENT
+-- Idempotency tracking for events processed from outbox
+-- ------------------------------------------------------------
+CREATE TABLE processed_event (
+                                 event_id     BIGINT PRIMARY KEY,
+                                 status       VARCHAR(20) NOT NULL,
+                                 created_at   TIMESTAMPTZ NOT NULL,
+                                 completed_at TIMESTAMPTZ
+);
+
+-- ------------------------------------------------------------
 -- BALANCE_SNAPSHOTS
 -- Periodic checkpoint of computed balance counters per wallet.
 -- computeBalance() uses the latest snapshot + only newer entries
