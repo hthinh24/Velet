@@ -166,18 +166,20 @@ CREATE INDEX idx_bills_bill_ref_no ON bills (bill_ref_no);
 -- OUTBOX
 -- Transactional outbox pattern
 -- ------------------------------------------------------------
-CREATE TYPE outbox_status AS ENUM('PENDING', 'SENT', 'FAILED');
+CREATE TYPE aggregate_type AS ENUM('TRANSACTION');
+CREATE TYPE event_type AS ENUM('TRANSFER_COMPLETED', 'LOYALTY_TRANSFER_EVENT');
+CREATE TYPE outbox_status AS ENUM('PENDING', 'PROCESSING', 'SENT', 'FAILED');
 
 CREATE TABLE outbox
 (
     id             BIGSERIAL PRIMARY KEY,
-    aggregate_id   BIGINT        NOT NULL, -- transaction_id or order_id
-    aggregate_type VARCHAR(50)   NOT NULL, -- 'TRANSACTION' | 'ORDER'
-    event_type     VARCHAR(100)  NOT NULL, -- 'payment.completed', 'order.created'
-    payload        JSONB         NOT NULL,
-    status         outbox_status NOT NULL DEFAULT 'PENDING',
-    retry_count    INT           NOT NULL DEFAULT 0,
-    created_at     TIMESTAMPTZ   NOT NULL DEFAULT now(),
+    aggregate_id   BIGINT         NOT NULL, -- transaction_id or order_id
+    aggregate_type aggregate_type NOT NULL,
+    event_type     event_type     NOT NULL, -- 'payment.completed', 'order.created'
+    payload        JSONB          NOT NULL,
+    status         outbox_status  NOT NULL DEFAULT 'PENDING',
+    retry_count    INT            NOT NULL DEFAULT 0,
+    created_at     TIMESTAMPTZ    NOT NULL DEFAULT now(),
     sent_at        TIMESTAMPTZ
 );
 

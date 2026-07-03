@@ -41,6 +41,8 @@ spring:
     listener:
       simple:
         prefetch: 10
+    username: ${RABBITMQ_USERNAME:localhost}
+    password: ${RABBITMQ_PASSWORD:}
 
 management:
   endpoints:
