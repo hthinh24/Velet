@@ -64,6 +64,9 @@ public class WalletCacheSyncServiceImpl implements WalletCacheSyncService {
         try {
             cacheRepo.incrementCounter(event.fromWalletId().toString(),   "postedDebits",  event.amount().longValue());
             cacheRepo.incrementCounter(event.toWalletId().toString(), "postedCredits", event.amount().longValue());
+
+            cacheRepo.increaseWalletBalance(event.fromWalletId().toString(), event.amount().negate());
+            cacheRepo.increaseWalletBalance(event.toWalletId().toString(), event.amount());
         } catch (Exception e) {
             log.warn("cache.update.failed senderId={} receiverId={} — will self-heal on cache miss",
                      event.fromWalletId(), event.toWalletId(), e);
