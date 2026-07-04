@@ -40,7 +40,16 @@ spring:
     publisher-returns: true
     listener:
       simple:
+        acknowledge-mode: manual
+        default-requeue-rejected: false
         prefetch: 10
+        retry:
+          enabled: true
+          max-retries: 3
+          initial-interval: 1000ms
+          multiplier: 2.0
+    username: ${RABBITMQ_USERNAME:localhost}
+    password: ${RABBITMQ_PASSWORD:}
 
 management:
   endpoints:

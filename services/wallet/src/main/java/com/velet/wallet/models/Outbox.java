@@ -1,5 +1,7 @@
 package com.velet.wallet.models;
 
+import com.velet.wallet.models.enums.AggregateType;
+import com.velet.wallet.models.enums.EventType;
 import com.velet.wallet.models.enums.OutboxStatus;
 import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcType;
@@ -27,11 +29,17 @@ public class Outbox extends BaseCreatableEntity {
     @Column(name = "aggregate_id", nullable = false)
     private Long aggregateId;
 
-    @Column(name = "aggregate_type", nullable = false, length = 50)
-    private String aggregateType;
+    @Enumerated(EnumType.STRING)
+    @JdbcType(PostgreSQLEnumJdbcType.class)
+    @Column(name = "aggregate_type", nullable = false, columnDefinition = "aggregate_type")
+    @Builder.Default
+    private AggregateType aggregateType = AggregateType.TRANSACTION;
 
-    @Column(name = "event_type", nullable = false, length = 100)
-    private String eventType;
+    @Enumerated(EnumType.STRING)
+    @JdbcType(PostgreSQLEnumJdbcType.class)
+    @Column(name = "event_type", nullable = false, columnDefinition = "event_type")
+    @Builder.Default
+    private EventType eventType = EventType.TRANSFER_COMPLETED;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "payload", nullable = false)

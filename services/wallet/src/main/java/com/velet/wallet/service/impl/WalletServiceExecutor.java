@@ -2,6 +2,8 @@ package com.velet.wallet.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.velet.wallet.dto.event.LoyaltyEvent;
+import com.velet.wallet.dto.event.TransferCompletedEvent;
 import com.velet.wallet.dto.request.TransferRequest;
 import com.velet.wallet.dto.response.TransferResponse;
 import com.velet.wallet.exception.AppException;
@@ -11,10 +13,7 @@ import com.velet.wallet.models.LedgerEntry;
 import com.velet.wallet.models.BalanceComponents;
 import com.velet.wallet.models.Outbox;
 import com.velet.wallet.models.Transaction;
-import com.velet.wallet.models.enums.EntryType;
-import com.velet.wallet.models.enums.LedgerEntryStatus;
-import com.velet.wallet.models.enums.TransactionStatus;
-import com.velet.wallet.models.enums.TransactionType;
+import com.velet.wallet.models.enums.*;
 import com.velet.wallet.repository.LedgerRepository;
 import com.velet.wallet.repository.OutboxRepository;
 import com.velet.wallet.repository.TransactionRepository;
@@ -115,8 +114,8 @@ public class WalletServiceExecutor {
         events.add(
             Outbox.builder()
                 .aggregateId(transaction.getId())
-                .aggregateType("Transaction")
-                .eventType("TRANSFER_COMPLETED")
+                .aggregateType(AggregateType.TRANSACTION)
+                .eventType(EventType.TRANSFER_COMPLETED)
                 .payload(buildTransferCompletedPayload(transaction, request, now))
                 .build()
         );
@@ -126,8 +125,8 @@ public class WalletServiceExecutor {
             events.add(
                 Outbox.builder()
                     .aggregateId(transaction.getId())
-                    .aggregateType("Transaction")
-                    .eventType("LOYALTY_TRANSFER_EVENT")
+                    .aggregateType(AggregateType.TRANSACTION)
+                    .eventType(EventType.LOYALTY_TRANSFER_EVENT)
                     .payload(buildLoyaltyEventPayload(transaction, request, now))
                     .build()
             );
@@ -154,14 +153,15 @@ public class WalletServiceExecutor {
 
     private String buildTransferCompletedPayload(Transaction transaction, TransferRequest request, Instant occurredAt) {
         try {
-            return objectMapper.writeValueAsString(Map.of(
-                    "transactionId", String.valueOf(transaction.getId()),
-                    "fromWalletId",   request.fromWalletId(),
-                    "toWalletId",     request.toWalletId(),
-                    "amount",        request.amount(),
-                    "currency",      transaction.getCurrency(),
-                    "occurredAt",    occurredAt.toString()
-            ));
+            var event = new TransferCompletedEvent(
+                    String.valueOf(transaction.getId()),
+                    Long.parseLong(request.fromWalletId()),
+                    Long.parseLong(request.toWalletId()),
+                    request.amount(),
+                    transaction.getCurrency(),
+                    occurredAt.toString()
+            );
+            return objectMapper.writeValueAsString(event);
         } catch (JsonProcessingException e) {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
@@ -169,13 +169,14 @@ public class WalletServiceExecutor {
 
     private String buildLoyaltyEventPayload(Transaction transaction, TransferRequest request, Instant occurredAt) {
         try {
-            var payload = new LinkedHashMap<String, Object>();
-            payload.put("transactionId", String.valueOf(transaction.getId()));
-            payload.put("userId",        request.fromWalletId());
-            if (request.voucherId() != null) payload.put("voucherId", request.voucherId());
-            if (request.points()    != null) payload.put("points",    request.points());
-            payload.put("occurredAt", occurredAt.toString());
-            return objectMapper.writeValueAsString(payload);
+            var event = new LoyaltyEvent(
+                    String.valueOf(transaction.getId()),
+                    Long.parseLong(request.fromWalletId()),
+                    request.voucherId(),
+                    request.points(),
+                    occurredAt.toString()
+            );
+            return objectMapper.writeValueAsString(event);
         } catch (JsonProcessingException e) {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
