@@ -1,5 +1,6 @@
 package com.velet.wallet.service.impl;
 
+import com.velet.wallet.dto.event.BalanceReservationCreatedEvent;
 import com.velet.wallet.dto.event.TransferCompletedEvent;
 import com.velet.wallet.models.ProcessedEvent;
 import com.velet.wallet.models.enums.ProcessingStatus;
@@ -24,6 +25,14 @@ public class WalletCacheSyncServiceImpl implements WalletCacheSyncService {
 
     private final TransactionTemplate transactionTemplate;
 
+    private static final String AVAILABLE_BALANCE = "availableBalance";
+    private static final String PENDING_BALANCE = "pendingBalance";
+
+    private static final String POSTED_CREDITS = "postedCredits";
+    private static final String POSTED_DEBITS = "postedDebits";
+    private static final String PENDING_CREDITS = "pendingCredits";
+    private static final String PENDING_DEBITS = "pendingDebits";
+
     @Override
     public void syncBalance(Long eventId, TransferCompletedEvent payload) {
         ProcessedEvent existing = tryClaim(eventId);
@@ -38,6 +47,25 @@ public class WalletCacheSyncServiceImpl implements WalletCacheSyncService {
 
         transactionTemplate.executeWithoutResult(status ->
                                                          processedEventRepository.markDone(eventId, Instant.now()));
+
+        log.info("Transfer event with id: {} processed successfully", eventId);
+    }
+
+    @Override
+    public void reserveBalance(Long eventId, BalanceReservationCreatedEvent payload) {
+        ProcessedEvent existing = tryClaim(eventId);
+
+        if (existing != null && existing.getStatus() == ProcessingStatus.DONE) {
+            log.info("Event {} already fully processed, skip", eventId);
+            return;
+        }
+
+        reserveBalanceOnCache(payload);
+
+        transactionTemplate.executeWithoutResult(status ->
+                                                         processedEventRepository.markDone(eventId, Instant.now()));
+
+        log.info("Reserve event with id: {} processed successfully", eventId);
     }
 
     /**
@@ -62,14 +90,27 @@ public class WalletCacheSyncServiceImpl implements WalletCacheSyncService {
 
     private void applyBalanceDeltaToRedis(TransferCompletedEvent event) {
         try {
-            cacheRepo.incrementCounter(event.fromWalletId().toString(),   "postedDebits",  event.amount().longValue());
-            cacheRepo.incrementCounter(event.toWalletId().toString(), "postedCredits", event.amount().longValue());
+            cacheRepo.incrementCounter(event.fromWalletId().toString(), POSTED_DEBITS, event.amount().longValue());
+            cacheRepo.incrementCounter(event.toWalletId().toString(), POSTED_CREDITS, event.amount().longValue());
 
-            cacheRepo.increaseWalletBalance(event.fromWalletId().toString(), event.amount().negate());
-            cacheRepo.increaseWalletBalance(event.toWalletId().toString(), event.amount());
+            cacheRepo.increaseWalletBalance(event.fromWalletId().toString(), AVAILABLE_BALANCE, event.amount().negate());
+            cacheRepo.increaseWalletBalance(event.toWalletId().toString(), AVAILABLE_BALANCE, event.amount());
         } catch (Exception e) {
             log.warn("cache.update.failed senderId={} receiverId={} — will self-heal on cache miss",
                      event.fromWalletId(), event.toWalletId(), e);
+        }
+    }
+
+    private void reserveBalanceOnCache(BalanceReservationCreatedEvent event) {
+        try {
+            cacheRepo.incrementCounter(event.fromWalletId().toString(), PENDING_DEBITS, event.amount().longValueExact());
+            cacheRepo.incrementCounter(event.toWalletId().toString(), PENDING_CREDITS, event.amount().longValueExact());
+
+            cacheRepo.increaseWalletBalance(event.fromWalletId().toString(), AVAILABLE_BALANCE, event.amount().negate());
+            cacheRepo.increaseWalletBalance(event.toWalletId().toString(), PENDING_BALANCE, event.amount());
+        } catch (Exception e) {
+            log.warn("cache.reserve.failed walletId={} — will self-heal on cache miss",
+                     event.fromWalletId(), e);
         }
     }
 }

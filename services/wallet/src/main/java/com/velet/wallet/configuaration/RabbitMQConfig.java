@@ -16,7 +16,7 @@ public class RabbitMQConfig {
 
     // Convention: velet.[consumer_service].[purpose].queue
     public static final String WALLET_CACHE_SYNC_QUEUE = "velet.wallet.cache-sync.queue";
-
+    public static final String WALLET_CACHE_RESERVATION_QUEUE = "velet.wallet.cache-reservation.queue";
 
     @Bean
     public TopicExchange walletExchange() {
@@ -34,7 +34,21 @@ public class RabbitMQConfig {
     public Binding walletCacheSyncBinding() {
         return BindingBuilder.bind(walletCacheSyncQueue())
                              .to(walletExchange())
-                             .with("transaction.*");
+                             .with("transaction.transfer_completed");
+    }
+
+    @Bean
+    public Queue walletCacheReservationQueue() {
+        return QueueBuilder.durable(WALLET_CACHE_RESERVATION_QUEUE)
+                           .withArgument("x-dead-letter-exchange", "velet.wallet.dlx")
+                           .build();
+    }
+
+    @Bean
+    public Binding walletCacheReservationBinding() {
+        return BindingBuilder.bind(walletCacheReservationQueue())
+                             .to(walletExchange())
+                             .with("transaction.balance_reservation_created");
     }
 
     @Bean

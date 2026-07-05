@@ -87,10 +87,10 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
     }
 
     @Override
-    public void increaseWalletBalance(String walletId, BigDecimal amount) {
+    public void increaseWalletBalance(String walletId, String field, BigDecimal amount) {
         String key = ACCOUNT_PREFIX + walletId;
 
-        hashRedisTemplate.opsForHash().increment(key, "availableBalance", amount.longValueExact());
+        hashRedisTemplate.opsForHash().increment(key, field, amount.longValueExact());
         hashRedisTemplate.expire(key, ACCOUNT_TTL);
     }
 

@@ -110,8 +110,6 @@ public class WalletServiceImpl implements WalletService {
             log.info("transfer.completed transactionId={} durationMs={}",
                      response.transactionId(), System.currentTimeMillis() - startMs);
 
-            updateCacheBalanceAfterTransfer(request.fromWalletId(), request.toWalletId(), request.amount());
-
             cacheRepo.releaseLock(firstLock);
             cacheRepo.releaseLock(secondLock);
             return response;
@@ -126,30 +124,53 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     public ReserveBalanceResponse reserve(ReserveBalanceRequest request) {
-        getWallet(request.walletId());
+        log.info("reserve.started amount={}", request.amount());
 
-        Optional<ReservationRecord> existing =
-                cacheRepo.getReservationRecord(request.idempotencyKey());
-
-        if (existing.isPresent()) {
-            return new ReserveBalanceResponse(ReservationStatus.RESERVED);
+        if (request.fromWalletId().equals(request.toWalletId())) {
+            throw new AppException(ErrorCode.TRANSFER_TO_SELF);
         }
 
-        boolean reserved = cacheRepo.reserve(request.walletId(), request.amount());
+        WalletInfo sender = getWallet(request.fromWalletId());
+        WalletInfo receiver = getWallet(request.toWalletId());
 
-        if (!reserved) {
-            log.error("reserve failed insufficient funds walletId={} amount={}", request.walletId(), request.amount());
+        Optional<BalanceComponents> cachedBalance = cacheRepo.getCounters(request.fromWalletId());
+        if (cachedBalance.isPresent() &&
+            cachedBalance.get().available() < request.amount().longValueExact()) {
             throw new AppException(ErrorCode.INSUFFICIENT_FUNDS);
         }
 
-        cacheRepo.saveReservationRecord(request.idempotencyKey(), ReservationRecord.builder()
-                                                                                   .status(ReservationStatus.RESERVED.name())
-                                                                                   .walletId(request.walletId())
-                                                                                   .amount(request.amount())
-                                                                                   .reservedAt(Instant.now().toEpochMilli())
-                                                                                   .build());
+        String firstLock  = request.fromWalletId().compareTo(request.toWalletId()) < 0
+                ? request.fromWalletId() : request.toWalletId();
+        String secondLock = request.fromWalletId().compareTo(request.toWalletId()) < 0
+                ? request.toWalletId() : request.fromWalletId();
 
-        return new ReserveBalanceResponse(ReservationStatus.RESERVED);
+        boolean firstAcquire  = false;
+        boolean secondAcquire = false;
+
+        try {
+            acquireOrThrow(firstLock);
+            firstAcquire = true;
+            acquireOrThrow(secondLock);
+            secondAcquire = true;
+
+            log.info("reserve.lock.acquired firstLock={} secondLock={}", firstLock, secondLock);
+
+            long startMs = System.currentTimeMillis();
+            ReserveBalanceResponse response = walletServiceExecutor.reserve(request);
+            log.info("reserve.completed, durationMs={}",
+                     System.currentTimeMillis() - startMs);
+
+            cacheRepo.releaseLock(firstLock);
+            cacheRepo.releaseLock(secondLock);
+
+            return response;
+
+        } catch (AppException e) {
+            log.error("transfer.failed reason={}", e.getMessage(), e);
+            if (firstAcquire)  cacheRepo.releaseLock(firstLock);
+            if (secondAcquire) cacheRepo.releaseLock(secondLock);
+            throw e;
+        }
     }
 
     @Override
@@ -225,31 +246,6 @@ public class WalletServiceImpl implements WalletService {
         cacheRepo.saveCounters(walletId, createBalanceCounter(balance));
 
         return info;
-    }
-
-    /**
-     * Called after Postgres transaction commits successfully.
-     * Increments the 2-counter balance cache to keep Redis in sync without a round-trip to DB.
-     * Failure here is safe to ignore — cache will self-heal on the next miss via computeBalance().
-     */
-    private void updateCacheBalanceAfterTransfer(String fromWalletId, String toWalletId, BigDecimal amount) {
-        updateAvailableBalances(fromWalletId, toWalletId, amount);
-        updateCachePostedCounters(fromWalletId, toWalletId, amount.longValueExact());
-    }
-
-    private void updateAvailableBalances(String fromWalletId, String toWalletId, BigDecimal amount) {
-        cacheRepo.increaseWalletBalance(fromWalletId, amount.negate());
-        cacheRepo.increaseWalletBalance(toWalletId, amount);
-    }
-
-    private void updateCachePostedCounters(String senderId, String receiverId, long amountCents) {
-        try {
-            cacheRepo.incrementCounter(senderId,   "postedDebits",  amountCents);
-            cacheRepo.incrementCounter(receiverId, "postedCredits", amountCents);
-        } catch (Exception e) {
-            log.warn("cache.update.failed senderId={} receiverId={} — will self-heal on cache miss",
-                     senderId, receiverId, e);
-        }
     }
 
     private BalanceCounter createBalanceCounter(BalanceComponents balance) {

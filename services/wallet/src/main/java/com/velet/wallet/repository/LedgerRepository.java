@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface LedgerRepository extends JpaRepository<LedgerEntry, Long> {
 
@@ -14,5 +15,8 @@ public interface LedgerRepository extends JpaRepository<LedgerEntry, Long> {
 
     @Query("SELECT DISTINCT l.wallet.id FROM LedgerEntry l")
     List<Long> findAllActiveWalletIds();
+
+    @Query("SELECT l FROM LedgerEntry l WHERE l.idempotencyKey = :idempotencyKey")
+    Optional<LedgerEntry> findByIdempotencyKey(String idempotencyKey);
 }
 

@@ -2,9 +2,13 @@ package com.velet.wallet.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.velet.wallet.app.SystemAccountCache;
 import com.velet.wallet.dto.event.LoyaltyEvent;
+import com.velet.wallet.dto.event.BalanceReservationCreatedEvent;
 import com.velet.wallet.dto.event.TransferCompletedEvent;
+import com.velet.wallet.dto.request.ReserveBalanceRequest;
 import com.velet.wallet.dto.request.TransferRequest;
+import com.velet.wallet.dto.response.ReserveBalanceResponse;
 import com.velet.wallet.dto.response.TransferResponse;
 import com.velet.wallet.exception.AppException;
 import com.velet.wallet.exception.ErrorCode;
@@ -27,9 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -46,6 +48,7 @@ public class WalletServiceExecutor {
     private final LedgerRepository ledgerRepository;
     private final OutboxRepository outboxRepository;
     private final ObjectMapper objectMapper;
+    private final SystemAccountCache systemAccountCache;
 
     @Transactional
     public TransferResponse transfer(Long senderId, Long receiverId, TransferRequest request) {
@@ -53,9 +56,9 @@ public class WalletServiceExecutor {
 
         // Acquire pessimistic write lock on both wallet rows to prevent race condition
         walletRepository.findByIdWithLock(senderId)
-                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+                        .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
         walletRepository.findByIdWithLock(receiverId)
-                .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+                        .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
 
         WalletRepository.BalanceRow row = walletRepository.computeBalanceRaw(senderId);
         BalanceComponents balance = new BalanceComponents(
@@ -75,13 +78,13 @@ public class WalletServiceExecutor {
         Transaction transaction;
         try {
             transaction = transactionRepository.saveAndFlush(Transaction.builder()
-                    .sourceWallet(senderWallet)
-                    .destinationWallet(receiverWallet)
-                    .amount(amountInCents)
-                    .type(TransactionType.TRANSFER)
-                    .status(TransactionStatus.SUCCESS)
-                    .idempotencyKey(request.idempotencyKey())
-                    .build());
+                                                                        .sourceWallet(senderWallet)
+                                                                        .destinationWallet(receiverWallet)
+                                                                        .amount(amountInCents)
+                                                                        .type(TransactionType.TRANSFER)
+                                                                        .status(TransactionStatus.SUCCESS)
+                                                                        .idempotencyKey(request.idempotencyKey())
+                                                                        .build());
         } catch (DataIntegrityViolationException ex) {
             throw new AppException(ErrorCode.DUPLICATE_TRANSFER);
         }
@@ -91,44 +94,44 @@ public class WalletServiceExecutor {
         // 5d. Insert LedgerEntry DEBIT (sender)
         // 5e. Insert LedgerEntry CREDIT (receiver)
         ledgerRepository.saveAll(List.of(
-            LedgerEntry.builder()
-                .transaction(transaction)
-                .wallet(senderWallet)
-                .entryType(EntryType.DEBIT)
-                .amount(amountInCents)
-                .status(LedgerEntryStatus.POSTED)
-                .idempotencyKey(generateLedgerIdempotentKey(request.idempotencyKey(), "debit"))
-                .build(),
-            LedgerEntry.builder()
-                .transaction(transaction)
-                .wallet(receiverWallet)
-                .entryType(EntryType.CREDIT)
-                .amount(amountInCents)
-                .status(LedgerEntryStatus.POSTED)
-                .idempotencyKey(generateLedgerIdempotentKey(request.idempotencyKey(), "credit"))
-                .build()
-            ));
+                LedgerEntry.builder()
+                           .transaction(transaction)
+                           .wallet(senderWallet)
+                           .entryType(EntryType.DEBIT)
+                           .amount(amountInCents)
+                           .status(LedgerEntryStatus.POSTED)
+                           .idempotencyKey(generateLedgerIdempotentKey(request.idempotencyKey(), "debit"))
+                           .build(),
+                LedgerEntry.builder()
+                           .transaction(transaction)
+                           .wallet(receiverWallet)
+                           .entryType(EntryType.CREDIT)
+                           .amount(amountInCents)
+                           .status(LedgerEntryStatus.POSTED)
+                           .idempotencyKey(generateLedgerIdempotentKey(request.idempotencyKey(), "credit"))
+                           .build()
+        ));
 
         // 5f. Create Outbox TRANSFER_COMPLETED
         List<Outbox> events = new ArrayList<>();
         events.add(
-            Outbox.builder()
-                .aggregateId(transaction.getId())
-                .aggregateType(AggregateType.TRANSACTION)
-                .eventType(EventType.TRANSFER_COMPLETED)
-                .payload(buildTransferCompletedPayload(transaction, request, now))
-                .build()
+                Outbox.builder()
+                      .aggregateId(transaction.getId())
+                      .aggregateType(AggregateType.TRANSACTION)
+                      .eventType(EventType.TRANSFER_COMPLETED)
+                      .payload(buildTransferCompletedPayload(transaction, request, now))
+                      .build()
         );
 
         // 5g. Create Outbox LOYALTY_TRANSFER_EVENT — only when loyalty data is present
         if (request.voucherId() != null || request.points() != null) {
             events.add(
-                Outbox.builder()
-                    .aggregateId(transaction.getId())
-                    .aggregateType(AggregateType.TRANSACTION)
-                    .eventType(EventType.LOYALTY_TRANSFER_EVENT)
-                    .payload(buildLoyaltyEventPayload(transaction, request, now))
-                    .build()
+                    Outbox.builder()
+                          .aggregateId(transaction.getId())
+                          .aggregateType(AggregateType.TRANSACTION)
+                          .eventType(EventType.LOYALTY_TRANSFER_EVENT)
+                          .payload(buildLoyaltyEventPayload(transaction, request, now))
+                          .build()
             );
         }
 
@@ -143,6 +146,96 @@ public class WalletServiceExecutor {
                 TransactionStatus.SUCCESS,
                 now
         );
+    }
+
+    @Transactional
+    public ReserveBalanceResponse reserve(ReserveBalanceRequest request) {
+        String debitKey = request.idempotencyKey() + ":DEBIT";
+        String creditKey = request.idempotencyKey() + ":CREDIT";
+
+        Long sourceWalletId = Long.parseLong(request.fromWalletId());
+        Long holdWalletId = Long.parseLong(request.toWalletId());
+        Long amountInCents = request.amount().longValueExact();
+
+        walletRepository.findByIdWithLock(sourceWalletId)
+                        .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+        walletRepository.findByIdWithLock(holdWalletId)
+                        .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+
+        WalletRepository.BalanceRow row = walletRepository.computeBalanceRaw(sourceWalletId);
+        BalanceComponents balance = new BalanceComponents(
+                row.getPostedDebits(), row.getPostedCredits(),
+                row.getPendingDebits(), row.getPendingCredits()
+        );
+        log.info("reserveBalance: walletId={}, available={}, amount={}", sourceWalletId, balance.available(),
+                 amountInCents);
+        if (balance.available() < amountInCents) {
+            throw new AppException(ErrorCode.INSUFFICIENT_FUNDS);
+        }
+
+        ReserveBalanceResponse reserveExisted = lookupExisting(debitKey);
+        if (reserveExisted != null) {
+            return reserveExisted;
+        }
+
+        Wallet sourceWallet = walletRepository.getReferenceById(sourceWalletId);
+        Wallet holdWallet = walletRepository.getReferenceById(holdWalletId);
+
+        Transaction transaction;
+        transaction = transactionRepository.save(Transaction.builder()
+                                                            .sourceWallet(sourceWallet)
+                                                            .destinationWallet(holdWallet)
+                                                            .amount(amountInCents)
+                                                            .type(TransactionType.PAYMENT)
+                                                            .status(TransactionStatus.PENDING)
+                                                            .idempotencyKey(request.idempotencyKey())
+                                                            .build());
+
+        ledgerRepository.save(LedgerEntry.builder()
+                                         .transaction(transaction)
+                                         .wallet(sourceWallet)
+                                         .entryType(EntryType.DEBIT)
+                                         .amount(amountInCents)
+                                         .status(LedgerEntryStatus.PENDING)
+                                         .idempotencyKey(debitKey)
+                                         .build());
+
+        Long suspendWalletId = systemAccountCache.resolve(AccountType.SUSPENSE_ACCOUNT);
+        Wallet suspendWallet = walletRepository.getReferenceById(suspendWalletId);
+        ledgerRepository.save(LedgerEntry.builder()
+                                         .transaction(transaction)
+                                         .wallet(suspendWallet)
+                                         .entryType(EntryType.CREDIT)
+                                         .amount(amountInCents)
+                                         .status(LedgerEntryStatus.PENDING)
+                                         .idempotencyKey(creditKey)
+                                         .build());
+
+        Instant now = Instant.now();
+        Outbox outbox = Outbox.builder()
+                              .aggregateId(transaction.getId())
+                              .aggregateType(AggregateType.TRANSACTION)
+                              .eventType(EventType.BALANCE_RESERVATION_CREATED)
+                              .payload(buildBalanceReservationCreatedEvent(transaction, request, now))
+                              .build();
+        outboxRepository.save(outbox);
+
+        return new ReserveBalanceResponse(ReservationStatus.RESERVED);
+    }
+
+    private ReserveBalanceResponse lookupExisting(String debitKey) {
+        LedgerEntry existing = ledgerRepository.findByIdempotencyKey(debitKey)
+                                               .orElse(null);
+
+        if (existing == null) {
+            return null;
+        }
+
+        return switch (existing.getStatus()) {
+            case PENDING -> new ReserveBalanceResponse(ReservationStatus.RESERVED);
+            case POSTED -> new ReserveBalanceResponse(ReservationStatus.COMPLETED);
+            case CANCELLED -> new ReserveBalanceResponse(ReservationStatus.RELEASED);
+        };
     }
 
     private String generateLedgerIdempotentKey(String idempotencyKey, String suffix) {
@@ -174,6 +267,22 @@ public class WalletServiceExecutor {
                     Long.parseLong(request.fromWalletId()),
                     request.voucherId(),
                     request.points(),
+                    occurredAt.toString()
+            );
+            return objectMapper.writeValueAsString(event);
+        } catch (JsonProcessingException e) {
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private String buildBalanceReservationCreatedEvent(Transaction transaction, ReserveBalanceRequest request, Instant occurredAt) {
+        try {
+            var event = new BalanceReservationCreatedEvent(
+                    String.valueOf(transaction.getId()),
+                    Long.parseLong(request.fromWalletId()),
+                    Long.parseLong(request.toWalletId()),
+                    request.amount(),
+                    transaction.getCurrency(),
                     occurredAt.toString()
             );
             return objectMapper.writeValueAsString(event);

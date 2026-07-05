@@ -167,7 +167,7 @@ CREATE INDEX idx_bills_bill_ref_no ON bills (bill_ref_no);
 -- Transactional outbox pattern
 -- ------------------------------------------------------------
 CREATE TYPE aggregate_type AS ENUM('TRANSACTION');
-CREATE TYPE event_type AS ENUM('TRANSFER_COMPLETED', 'LOYALTY_TRANSFER_EVENT');
+CREATE TYPE event_type AS ENUM('TRANSFER_COMPLETED', 'LOYALTY_TRANSFER_EVENT', 'BALANCE_RESERVATION_CREATED');
 CREATE TYPE outbox_status AS ENUM('PENDING', 'PROCESSING', 'SENT', 'FAILED');
 
 CREATE TABLE outbox

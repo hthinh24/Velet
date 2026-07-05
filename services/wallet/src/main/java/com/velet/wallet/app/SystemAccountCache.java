@@ -5,6 +5,7 @@ import com.velet.wallet.models.enums.AccountType;
 import com.velet.wallet.repository.WalletRepository;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +17,7 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 @Getter
+@Slf4j
 public class SystemAccountCache implements CommandLineRunner {
 
     private final WalletRepository walletRepository;
@@ -32,7 +34,7 @@ public class SystemAccountCache implements CommandLineRunner {
         accountIdMap = systemWallets.stream()
                                     .collect(Collectors.toMap(Wallet::getType, Wallet::getId));
 
-        System.out.println("SystemAccountCache initialized: " + accountIdMap);
+        log.info("System account cache initialized, data: {}", accountIdMap);
     }
 
     public Long resolve(AccountType type) {

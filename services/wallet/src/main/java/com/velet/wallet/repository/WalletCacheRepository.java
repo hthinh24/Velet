@@ -20,7 +20,7 @@ public interface WalletCacheRepository {
 
     void releaseLock(String walletId);
 
-    void increaseWalletBalance(String walletId, BigDecimal amount);
+    void increaseWalletBalance(String walletId, String field, BigDecimal amount);
 
     void incrementCounter(String walletId, String field, long delta);
 
