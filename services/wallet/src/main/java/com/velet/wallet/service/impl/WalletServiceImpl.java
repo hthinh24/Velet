@@ -199,24 +199,7 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     public ReleaseBalanceResponse release(ReleaseBalanceRequest request) {
-        getWallet(request.walletId());
-
-        Optional<ReservationRecord> existing =
-                cacheRepo.getReservationRecord(request.idempotencyKey());
-
-        if (existing.isEmpty()) {
-            log.warn("release.not_found idempotencyKey={}", request.idempotencyKey());
-            throw new AppException(ErrorCode.RESERVATION_NOT_FOUND);
-        }
-
-        if (ReservationStatus.RELEASED.name().equals(existing.get().status())) {
-            return new ReleaseBalanceResponse(ReservationStatus.RELEASED);
-        }
-
-        cacheRepo.release(request.walletId(), request.amount());
-        cacheRepo.updateReservationRecordStatus(request.idempotencyKey(), ReservationStatus.RELEASED.name());
-
-        return new ReleaseBalanceResponse(ReservationStatus.RELEASED);
+        return walletServiceExecutor.release(request);
     }
 
     private void validateWalletOwner(Long walletOwnerId, Long userId) {

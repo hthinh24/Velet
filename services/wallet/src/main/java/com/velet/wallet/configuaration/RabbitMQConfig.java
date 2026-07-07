@@ -3,6 +3,7 @@ package com.velet.wallet.configuaration;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.DefaultJacksonJavaTypeMapper;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
@@ -14,7 +15,7 @@ public class RabbitMQConfig {
     // Convention: velet.[service].topic
     public static final String WALLET_EXCHANGE = "velet.wallet.topic";
 
-    // Convention: velet.[consumer_service].[purpose].queue
+    // Convention: velet.[consumer_service].[purpose]-[source_domain].queue
     public static final String WALLET_CACHE_SYNC_QUEUE = "velet.wallet.cache-sync.queue";
     public static final String WALLET_CACHE_RESERVATION_QUEUE = "velet.wallet.cache-reservation.queue";
 
@@ -49,6 +50,13 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(walletCacheReservationQueue())
                              .to(walletExchange())
                              .with("transaction.balance_reservation_created");
+    }
+
+    @Bean
+    public Binding walletTransactionCancelBinding() {
+        return BindingBuilder.bind(walletCacheReservationQueue())
+                             .to(walletExchange())
+                             .with("transaction.transaction_cancelled");
     }
 
     @Bean

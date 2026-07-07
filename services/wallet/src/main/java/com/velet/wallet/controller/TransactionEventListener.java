@@ -3,6 +3,7 @@ package com.velet.wallet.controller;
 import com.rabbitmq.client.Channel;
 import com.velet.wallet.configuaration.RabbitMQConfig;
 import com.velet.wallet.dto.event.BalanceReservationCreatedEvent;
+import com.velet.wallet.dto.event.TransactionCanceledEvent;
 import com.velet.wallet.dto.event.TransferCompletedEvent;
 import com.velet.wallet.service.WalletCacheSyncService;
 import lombok.RequiredArgsConstructor;
@@ -47,6 +48,21 @@ public class TransactionEventListener {
 
         Long eventId = Long.parseLong(messageId);
         walletCacheSyncService.reserveBalance(eventId, event);
+
+        channel.basicAck(tag, false);
+    }
+
+    @RabbitListener(queues = RabbitMQConfig.WALLET_CACHE_RESERVATION_QUEUE, ackMode = "MANUAL")
+    public void onPaymentCanceled(
+            TransactionCanceledEvent event,
+            @Header(AmqpHeaders.MESSAGE_ID) String messageId,
+            Channel channel,
+            @Header(AmqpHeaders.DELIVERY_TAG) long tag) throws IOException {
+
+        log.info("Received transaction canceled event: {}", event);
+
+//        Long eventId = Long.parseLong(messageId);
+//        walletCacheSyncService.reserveBalance(eventId, event);
 
         channel.basicAck(tag, false);
     }

@@ -9,9 +9,9 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- WALLET
 -- Represents a wallet owned by a user, merchant, or system
 -- ------------------------------------------------------------
-CREATE TYPE wallet_category AS ENUM('ASSET', 'LIABILITY', 'EQUITY', 'INTERNAL_TECHNICAL');
+CREATE TYPE wallet_category AS ENUM ('ASSET', 'LIABILITY', 'EQUITY', 'INTERNAL_TECHNICAL');
 
-CREATE TYPE wallet_type AS ENUM(
+CREATE TYPE wallet_type AS ENUM (
     -- ASSET
     'BANK_VAULT',
 
@@ -25,7 +25,7 @@ CREATE TYPE wallet_type AS ENUM(
     'RESERVE_ACCOUNT'
     );
 
-CREATE TYPE wallet_status AS ENUM('ACTIVE', 'FROZEN', 'CLOSED');
+CREATE TYPE wallet_status AS ENUM ('ACTIVE', 'FROZEN', 'CLOSED');
 
 CREATE TABLE wallets
 (
@@ -49,8 +49,9 @@ ALTER SEQUENCE wallets_id_seq RESTART WITH 1001;
 -- TRANSACTION
 -- Records money movement between two wallets
 -- ------------------------------------------------------------
-CREATE TYPE transaction_type AS ENUM('TRANSFER', 'TOPUP', 'WITHDRAW', 'PAYMENT', 'BILL_PAYMENT');
-CREATE TYPE transaction_status AS ENUM('PENDING', 'SUCCESS', 'FAILED', 'REVERSED');
+CREATE TYPE transaction_type AS ENUM ('TRANSFER', 'TOPUP', 'WITHDRAW', 'PAYMENT', 'BILL_PAYMENT');
+CREATE TYPE transaction_status AS ENUM ('PENDING', 'SUCCESS', 'FAILED', 'REVERSED');
+CREATE TYPE cancel_reason AS ENUM ('PAYMENT_FAILED', 'PAYMENT_TIMEOUT', 'USER_CANCELLED', 'MANUAL_ADJUSTMENT');
 
 CREATE TABLE transactions
 (
@@ -61,6 +62,7 @@ CREATE TABLE transactions
     currency              VARCHAR(3)         NOT NULL DEFAULT 'VND',
     type                  transaction_type   NOT NULL,
     status                transaction_status NOT NULL DEFAULT 'PENDING',
+    cancel_reason         cancel_reason,
     idempotency_key       varchar(64)        NOT NULL UNIQUE,
     created_at            TIMESTAMPTZ        NOT NULL DEFAULT now(),
     updated_at            TIMESTAMPTZ        NOT NULL DEFAULT now()
@@ -89,8 +91,8 @@ CREATE TABLE balance_reservations
 -- Double-entry bookkeeping: every transaction generates 2 entries
 -- Append-only — never UPDATE or DELETE
 -- ------------------------------------------------------------
-CREATE TYPE entry_type AS ENUM('DEBIT', 'CREDIT');
-CREATE TYPE entry_status AS ENUM('PENDING', 'POSTED', 'RELEASED');
+CREATE TYPE entry_type AS ENUM ('DEBIT', 'CREDIT');
+CREATE TYPE entry_status AS ENUM ('PENDING', 'POSTED', 'CANCELLED', 'RELEASED');
 
 CREATE TABLE ledger_entries
 (
@@ -115,8 +117,8 @@ CREATE INDEX idx_ledger_wallet_id_seq ON ledger_entries (wallet_id, id);
 -- ORDER
 -- Payment context: aggregates transaction + loyalty usage
 -- ------------------------------------------------------------
-CREATE TYPE order_type AS ENUM('PAYMENT', 'BILL_PAYMENT');
-CREATE TYPE order_status AS ENUM('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED');
+CREATE TYPE order_type AS ENUM ('PAYMENT', 'BILL_PAYMENT');
+CREATE TYPE order_status AS ENUM ('PENDING', 'COMPLETED', 'FAILED', 'REFUNDED');
 
 CREATE TABLE orders
 (
@@ -141,7 +143,7 @@ CREATE INDEX idx_orders_status ON orders (status);
 -- Extension of ORDER for utility bill payments
 -- Stores provider-specific context
 -- ------------------------------------------------------------
-CREATE TYPE bill_status AS ENUM('UNPAID', 'PAID');
+CREATE TYPE bill_status AS ENUM ('UNPAID', 'PAID');
 
 CREATE TABLE bills
 (
@@ -149,8 +151,7 @@ CREATE TABLE bills
     order_id      BIGINT       NOT NULL UNIQUE REFERENCES orders (id),
     provider_code VARCHAR(20)  NOT NULL, -- 'EVN', 'VNPT', 'FPT', ...
     bill_ref_no   VARCHAR(100) NOT NULL, -- bill reference number from provider
-    period VARCHAR(20
-) ,           -- billing period, e.g., '2024-05'
+    period        VARCHAR(20),           -- billing period, e.g., '2024-05'
     amount        BIGINT       NOT NULL CHECK (amount > 0),
     status        bill_status  NOT NULL DEFAULT 'UNPAID',
     due_date      TIMESTAMPTZ,
@@ -166,9 +167,9 @@ CREATE INDEX idx_bills_bill_ref_no ON bills (bill_ref_no);
 -- OUTBOX
 -- Transactional outbox pattern
 -- ------------------------------------------------------------
-CREATE TYPE aggregate_type AS ENUM('TRANSACTION');
-CREATE TYPE event_type AS ENUM('TRANSFER_COMPLETED', 'LOYALTY_TRANSFER_EVENT', 'BALANCE_RESERVATION_CREATED');
-CREATE TYPE outbox_status AS ENUM('PENDING', 'PROCESSING', 'SENT', 'FAILED');
+CREATE TYPE aggregate_type AS ENUM ('TRANSACTION');
+CREATE TYPE event_type AS ENUM ('TRANSFER_COMPLETED', 'LOYALTY_TRANSFER_EVENT', 'BALANCE_RESERVATION_CREATED', 'TRANSACTION_CANCELLED');
+CREATE TYPE outbox_status AS ENUM ('PENDING', 'PROCESSING', 'SENT', 'FAILED');
 
 CREATE TABLE outbox
 (
@@ -190,11 +191,12 @@ CREATE INDEX idx_outbox_created_at ON outbox (created_at);
 -- PROCESSED_EVENT
 -- Idempotency tracking for events processed from outbox
 -- ------------------------------------------------------------
-CREATE TABLE processed_event (
-                                 event_id     BIGINT PRIMARY KEY,
-                                 status       VARCHAR(20) NOT NULL,
-                                 created_at   TIMESTAMPTZ NOT NULL,
-                                 completed_at TIMESTAMPTZ
+CREATE TABLE processed_event
+(
+    event_id     BIGINT PRIMARY KEY,
+    status       VARCHAR(20) NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ
 );
 
 -- ------------------------------------------------------------
