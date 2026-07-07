@@ -220,7 +220,7 @@ public class WalletServiceExecutor {
                               .build();
         outboxRepository.save(outbox);
 
-        return new ReserveBalanceResponse(ReservationStatus.RESERVED);
+        return new ReserveBalanceResponse(ReservationStatus.RESERVED, transaction.getId(), request.idempotencyKey());
     }
 
     private ReserveBalanceResponse lookupExisting(String debitKey) {
@@ -232,9 +232,9 @@ public class WalletServiceExecutor {
         }
 
         return switch (existing.getStatus()) {
-            case PENDING -> new ReserveBalanceResponse(ReservationStatus.RESERVED);
-            case POSTED -> new ReserveBalanceResponse(ReservationStatus.COMPLETED);
-            case CANCELLED -> new ReserveBalanceResponse(ReservationStatus.RELEASED);
+            case PENDING -> new ReserveBalanceResponse(ReservationStatus.RESERVED, existing.getTransaction().getId(), existing.getTransaction().getIdempotencyKey());
+            case POSTED -> new ReserveBalanceResponse(ReservationStatus.COMPLETED, existing.getTransaction().getId(), existing.getTransaction().getIdempotencyKey());
+            case CANCELLED -> new ReserveBalanceResponse(ReservationStatus.RELEASED, existing.getTransaction().getId(), existing.getTransaction().getIdempotencyKey());
         };
     }
 

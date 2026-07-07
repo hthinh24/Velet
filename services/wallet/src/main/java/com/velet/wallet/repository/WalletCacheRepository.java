@@ -28,8 +28,6 @@ public interface WalletCacheRepository {
 
     void saveCounters(String walletId, BalanceCounter components);
 
-    boolean reserve(String walletId, BigDecimal amount);
-
     void release(String walletId, BigDecimal amount);
 
     Optional<ReservationRecord> getReservationRecord(String idempotencyKey);
