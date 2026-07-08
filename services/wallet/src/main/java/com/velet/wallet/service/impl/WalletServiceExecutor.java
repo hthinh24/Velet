@@ -235,6 +235,18 @@ public class WalletServiceExecutor {
         log.info("releaseBalance: originIdempotencyKey={}, releaseIdempotencyKey={}", request.originIdempotencyKey(),
                  request.releaseIdempotencyKey());
 
+        Transaction transaction = transactionRepository.findByIdempotencyKey(request.originIdempotencyKey())
+                                                       .orElseThrow(
+                                                               () -> new AppException(ErrorCode.RESERVATION_NOT_FOUND));
+        if (transaction.getStatus() == TransactionStatus.FAILED &&
+            transaction.getCancelReason().equals(CancelReason.USER_CANCELLED)) {
+
+            return new ReleaseBalanceResponse(ReservationStatus.RELEASED,
+                                              transaction.getId(),
+                                              request.originIdempotencyKey(),
+                                              transaction.getUpdatedAt().getEpochSecond());
+        }
+
         List<LedgerEntry> pairEntries = ledgerRepository
                 .findByIdempotencyKeys(List.of(debitKey, creditKey));
         if (pairEntries.size() != 2) {
@@ -250,11 +262,6 @@ public class WalletServiceExecutor {
         pairEntries.forEach(entry -> {
             ledgerRepository.updateLedgerEntryStatus(entry.getId(), LedgerEntryStatus.CANCELLED);
         });
-
-        Transaction transaction = pairEntries.getFirst().getTransaction();
-        if (transaction.getStatus() != TransactionStatus.PENDING) {
-            throw new AppException(ErrorCode.INVALID_RESERVATION_STATE);
-        }
 
         // Compensation
         Wallet sourceWallet = transaction.getSourceWallet();
@@ -303,7 +310,7 @@ public class WalletServiceExecutor {
                  request.releaseIdempotencyKey());
 
         return new ReleaseBalanceResponse(ReservationStatus.RELEASED, transaction.getId(),
-                                          request.originIdempotencyKey(), request.releaseIdempotencyKey());
+                                          request.originIdempotencyKey(), now.getEpochSecond());
     }
 
     private ReserveBalanceResponse lookupExisting(String debitKey) {

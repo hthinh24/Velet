@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.velet.wallet.dto.cache.BalanceCounter;
 import com.velet.wallet.dto.cache.ReservationRecord;
+import com.velet.wallet.dto.response.ReleaseBalanceResponse;
 import com.velet.wallet.dto.response.WalletInfo;
 import com.velet.wallet.exception.AppException;
 import com.velet.wallet.exception.ErrorCode;
@@ -130,23 +131,11 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
     }
 
     @Override
-    public void release(String walletId, BigDecimal amount) {
-        String key = ACCOUNT_PREFIX + walletId;
-        long amountCents = amount.longValueExact();
-        hashRedisTemplate.opsForHash().increment(key, "availableBalance", amountCents);
-        hashRedisTemplate.opsForHash().increment(key, "pendingBalance", -amountCents);
-    }
-
-    @Override
     public Optional<ReservationRecord> getReservationRecord(String idempotencyKey) {
         String key = RESERVATION_PREFIX + idempotencyKey;
-        String json = stringRedisTemplate.opsForValue().get(key);
-        if (json == null) return Optional.empty();
-        try {
-            return Optional.of(objectMapper.readValue(json, ReservationRecord.class));
-        } catch (JsonProcessingException e) {
-            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
-        }
+        ReservationRecord record =
+                redisHashCodec.fromHash(hashRedisTemplate.opsForHash().entries(key), ReservationRecord.class);
+        return Optional.ofNullable(record);
     }
 
     @Override
@@ -154,6 +143,14 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
         String key = RESERVATION_PREFIX + idempotencyKey;
 
         hashRedisTemplate.opsForHash().putAll(key, redisHashCodec.toHash(record));
+        hashRedisTemplate.expire(key, RESERVATION_TTL);
+    }
+
+    @Override
+    public void release(String idempotencyKey, ReleaseBalanceResponse data) {
+        String key = RESERVATION_PREFIX + idempotencyKey;
+        hashRedisTemplate.opsForHash().putAll(key, redisHashCodec.toHash(data));
+        hashRedisTemplate.expire(key, RESERVATION_TTL);
     }
 
     @Override

@@ -7,7 +7,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.Optional;
+
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
+
+    @Query("SELECT t FROM Transaction t WHERE t.idempotencyKey = :idempotencyKey")
+    Optional<Transaction> findByIdempotencyKey(String idempotencyKey);
+
     @Modifying
     @Query("UPDATE Transaction t SET t.status = :status WHERE t.id = :id")
     void updateTransactionStatus(Long id, String status);

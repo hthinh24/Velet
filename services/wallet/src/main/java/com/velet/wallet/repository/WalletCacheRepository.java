@@ -2,6 +2,7 @@ package com.velet.wallet.repository;
 
 import com.velet.wallet.dto.cache.BalanceCounter;
 import com.velet.wallet.dto.cache.ReservationRecord;
+import com.velet.wallet.dto.response.ReleaseBalanceResponse;
 import com.velet.wallet.models.BalanceComponents;
 import com.velet.wallet.dto.response.WalletInfo;
 
@@ -28,11 +29,11 @@ public interface WalletCacheRepository {
 
     void saveCounters(String walletId, BalanceCounter components);
 
-    void release(String walletId, BigDecimal amount);
-
     Optional<ReservationRecord> getReservationRecord(String idempotencyKey);
 
     void saveReservationRecord(String idempotencyKey, ReservationRecord record);
+
+    void release(String idempotencyKey, ReleaseBalanceResponse data);
 
     void updateReservationRecordStatus(String idempotencyKey, String status);
 }

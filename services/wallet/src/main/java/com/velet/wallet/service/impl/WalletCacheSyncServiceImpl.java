@@ -1,9 +1,11 @@
 package com.velet.wallet.service.impl;
 
+import com.velet.wallet.dto.cache.ReservationRecord;
 import com.velet.wallet.dto.event.BalanceReservationCreatedEvent;
 import com.velet.wallet.dto.event.TransferCompletedEvent;
 import com.velet.wallet.models.ProcessedEvent;
 import com.velet.wallet.models.enums.ProcessingStatus;
+import com.velet.wallet.models.enums.ReservationStatus;
 import com.velet.wallet.repository.ProcessedEventRepository;
 import com.velet.wallet.repository.WalletCacheRepository;
 import com.velet.wallet.service.WalletCacheSyncService;

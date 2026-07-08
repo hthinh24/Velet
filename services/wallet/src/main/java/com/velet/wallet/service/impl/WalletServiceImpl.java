@@ -130,6 +130,17 @@ public class WalletServiceImpl implements WalletService {
             throw new AppException(ErrorCode.TRANSFER_TO_SELF);
         }
 
+        Optional<ReservationRecord> existed = cacheRepo.getReservationRecord(request.idempotencyKey());
+        if (existed.isPresent() && existed.get().status().equals(ReservationStatus.RESERVED.name())) {
+            ReservationRecord reservationRecord = existed.get();
+            log.info("reserve.duplicate idempotencyKey={}", request.idempotencyKey());
+            return new ReserveBalanceResponse(
+                    ReservationStatus.valueOf(reservationRecord.status()),
+                    reservationRecord.transactionId(),
+                    request.idempotencyKey()
+            );
+        }
+
         WalletInfo sender = getWallet(request.fromWalletId());
         WalletInfo receiver = getWallet(request.toWalletId());
 
@@ -199,7 +210,23 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     public ReleaseBalanceResponse release(ReleaseBalanceRequest request) {
-        return walletServiceExecutor.release(request);
+        Optional<ReservationRecord> existed = cacheRepo.getReservationRecord(request.originIdempotencyKey());
+        if (existed.isPresent() && existed.get().status().equals(ReservationStatus.RELEASED.name())) {
+            ReservationRecord reservationRecord = existed.get();
+            log.info("release.duplicate originIdempotencyKey={}", request.originIdempotencyKey());
+
+            return new ReleaseBalanceResponse(
+                    ReservationStatus.valueOf(reservationRecord.status()),
+                    reservationRecord.transactionId(),
+                    request.originIdempotencyKey(),
+                    reservationRecord.releasedAt()
+            );
+        }
+
+        ReleaseBalanceResponse release = walletServiceExecutor.release(request);
+        cacheRepo.release(release.originIdempotencyKey(), release);
+
+        return release;
     }
 
     private void validateWalletOwner(Long walletOwnerId, Long userId) {
