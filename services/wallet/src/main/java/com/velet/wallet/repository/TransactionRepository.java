@@ -13,12 +13,4 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
 
     @Query("SELECT t FROM Transaction t WHERE t.idempotencyKey = :idempotencyKey")
     Optional<Transaction> findByIdempotencyKey(String idempotencyKey);
-
-    @Modifying
-    @Query("UPDATE Transaction t SET t.status = :status WHERE t.id = :id")
-    void updateTransactionStatus(Long id, String status);
-
-    @Modifying
-    @Query("UPDATE Transaction t SET t.status = 'FAILED', t.cancelReason = :reason WHERE t.id = :id")
-    void cancelTransaction(Long id, @NotNull CancelReason reason);
 }

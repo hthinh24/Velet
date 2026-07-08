@@ -59,9 +59,9 @@ public class WalletServiceExecutor {
         long amountInCents = request.amount().longValueExact();
 
         // Acquire pessimistic write lock on both wallet rows to prevent race condition
-        walletRepository.findByIdWithLock(senderId)
-                        .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
         walletRepository.findByIdWithLock(receiverId)
+                        .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+        walletRepository.findByIdWithLock(senderId)
                         .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
 
         WalletRepository.BalanceRow row = walletRepository.computeBalanceRaw(senderId);
@@ -177,7 +177,7 @@ public class WalletServiceExecutor {
             throw new AppException(ErrorCode.INSUFFICIENT_FUNDS);
         }
 
-        ReserveBalanceResponse reserveExisted = lookupExisting(debitKey);
+        ReserveBalanceResponse reserveExisted = lookupExistingTransaction(request.idempotencyKey());
         if (reserveExisted != null) {
             return reserveExisted;
         }
@@ -224,7 +224,8 @@ public class WalletServiceExecutor {
                               .build();
         outboxRepository.save(outbox);
 
-        return new ReserveBalanceResponse(ReservationStatus.RESERVED, transaction.getId(), request.idempotencyKey());
+        return new ReserveBalanceResponse(ReservationStatus.RESERVED, transaction.getId(), request.idempotencyKey(),
+                                          transaction.getCreatedAt().toEpochMilli(), null);
     }
 
     @Transactional
@@ -244,8 +245,14 @@ public class WalletServiceExecutor {
             return new ReleaseBalanceResponse(ReservationStatus.RELEASED,
                                               transaction.getId(),
                                               request.originIdempotencyKey(),
-                                              transaction.getUpdatedAt().getEpochSecond());
+                                              transaction.getCreatedAt().toEpochMilli(),
+                                              transaction.getUpdatedAt().toEpochMilli());
         }
+
+        ledgerRepository.findByIdempotencyKey(request.releaseIdempotencyKey() + "DEBIT")
+                        .ifPresent(entry -> {
+                            throw new AppException(ErrorCode.DUPLICATE_RELEASE);
+                        });
 
         List<LedgerEntry> pairEntries = ledgerRepository
                 .findByIdempotencyKeys(List.of(debitKey, creditKey));
@@ -260,7 +267,7 @@ public class WalletServiceExecutor {
         });
 
         pairEntries.forEach(entry -> {
-            ledgerRepository.updateLedgerEntryStatus(entry.getId(), LedgerEntryStatus.CANCELLED);
+            ledgerRepository.updateLedgerEntryStatus(entry.getId(), LedgerEntryStatus.POSTED);
         });
 
         // Compensation
@@ -273,24 +280,27 @@ public class WalletServiceExecutor {
         walletRepository.findByIdWithLock(destinationWallet.getId())
                         .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
 
-        transactionRepository.cancelTransaction(transaction.getId(), request.reason());
-        ledgerRepository.save(LedgerEntry.builder()
-                                         .transaction(transaction)
-                                         .wallet(sourceWallet)
-                                         .entryType(EntryType.DEBIT)
-                                         .amount(amountInCents)
-                                         .status(LedgerEntryStatus.PENDING)
-                                         .idempotencyKey(request.releaseIdempotencyKey() + "DEBIT")
-                                         .build());
+        transaction.setStatus(TransactionStatus.FAILED);
+        transaction.setCancelReason(request.reason());
+        transactionRepository.saveAndFlush(transaction);
 
         Long suspendWalletId = systemAccountCache.resolve(AccountType.SUSPENSE_ACCOUNT);
         Wallet suspendWallet = walletRepository.getReferenceById(suspendWalletId);
         ledgerRepository.save(LedgerEntry.builder()
                                          .transaction(transaction)
                                          .wallet(suspendWallet)
+                                         .entryType(EntryType.DEBIT)
+                                         .amount(amountInCents)
+                                         .status(LedgerEntryStatus.POSTED)
+                                         .idempotencyKey(request.releaseIdempotencyKey() + "DEBIT")
+                                         .build());
+
+        ledgerRepository.save(LedgerEntry.builder()
+                                         .transaction(transaction)
+                                         .wallet(sourceWallet)
                                          .entryType(EntryType.CREDIT)
                                          .amount(amountInCents)
-                                         .status(LedgerEntryStatus.PENDING)
+                                         .status(LedgerEntryStatus.POSTED)
                                          .idempotencyKey(request.releaseIdempotencyKey() + "CREDIT")
                                          .build());
 
@@ -310,24 +320,31 @@ public class WalletServiceExecutor {
                  request.releaseIdempotencyKey());
 
         return new ReleaseBalanceResponse(ReservationStatus.RELEASED, transaction.getId(),
-                                          request.originIdempotencyKey(), now.getEpochSecond());
+                                          request.originIdempotencyKey(), transaction.getCreatedAt().toEpochMilli(),
+                                          transaction.getUpdatedAt().toEpochMilli());
     }
 
-    private ReserveBalanceResponse lookupExisting(String debitKey) {
-        LedgerEntry existing = ledgerRepository.findByIdempotencyKey(debitKey)
-                                               .orElse(null);
+    private ReserveBalanceResponse lookupExistingTransaction(String idempotencyKey) {
+        Transaction existing = transactionRepository.findByIdempotencyKey(idempotencyKey)
+                                                    .orElse(null);
 
         if (existing == null) {
             return null;
         }
 
         return switch (existing.getStatus()) {
-            case PENDING -> new ReserveBalanceResponse(ReservationStatus.RESERVED, existing.getTransaction().getId(),
-                                                       existing.getTransaction().getIdempotencyKey());
-            case POSTED -> new ReserveBalanceResponse(ReservationStatus.COMPLETED, existing.getTransaction().getId(),
-                                                      existing.getTransaction().getIdempotencyKey());
-            case CANCELLED -> new ReserveBalanceResponse(ReservationStatus.RELEASED, existing.getTransaction().getId(),
-                                                         existing.getTransaction().getIdempotencyKey());
+            case PENDING -> new ReserveBalanceResponse(ReservationStatus.RESERVED, existing.getId(),
+                                                       existing.getIdempotencyKey(),
+                                                       existing.getCreatedAt().toEpochMilli(),
+                                                       null);
+            case SUCCESS -> new ReserveBalanceResponse(ReservationStatus.COMPLETED, existing.getId(),
+                                                       existing.getIdempotencyKey(),
+                                                       existing.getCreatedAt().toEpochMilli(),
+                                                       null);
+            case FAILED -> new ReserveBalanceResponse(ReservationStatus.RELEASED, existing.getId(),
+                                                      existing.getIdempotencyKey(),
+                                                      existing.getCreatedAt().toEpochMilli(),
+                                                      existing.getUpdatedAt().toEpochMilli());
         };
     }
 

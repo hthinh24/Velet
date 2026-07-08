@@ -5,5 +5,7 @@ import com.velet.wallet.models.enums.ReservationStatus;
 public record ReserveBalanceResponse(
     ReservationStatus status,
     Long transactionId,
-    String idempotencyKey
+    String idempotencyKey,
+    Long reservedAt,
+    Long releasedAt
 ) {}

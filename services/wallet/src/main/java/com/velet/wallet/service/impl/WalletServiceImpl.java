@@ -115,10 +115,14 @@ public class WalletServiceImpl implements WalletService {
             return response;
 
         } catch (AppException e) {
-            log.error("transfer.failed reason={}", e.getMessage(), e);
+            log.warn("transfer.failed reason={}", e.getMessage(), e);
+            throw e;
+        } catch (Exception e) {
+            log.error("transfer.unexpected.failed reason={}", e.getMessage(), e);
+            throw e;
+        } finally {
             if (firstAcquire) cacheRepo.releaseLock(firstLock);
             if (secondAcquire) cacheRepo.releaseLock(secondLock);
-            throw e;
         }
     }
 
@@ -137,7 +141,9 @@ public class WalletServiceImpl implements WalletService {
             return new ReserveBalanceResponse(
                     ReservationStatus.valueOf(reservationRecord.status()),
                     reservationRecord.transactionId(),
-                    request.idempotencyKey()
+                    request.idempotencyKey(),
+                    reservationRecord.reservedAt(),
+                    reservationRecord.releasedAt()
             );
         }
 
@@ -172,12 +178,12 @@ public class WalletServiceImpl implements WalletService {
                      System.currentTimeMillis() - startMs);
             cacheRepo.saveReservationRecord(request.idempotencyKey(),
                                             ReservationRecord.builder()
-                                                             .status(ReservationStatus.RESERVED.name())
+                                                             .status(response.status().name())
                                                              .transactionId(response.transactionId())
                                                              .walletId(request.fromWalletId())
                                                              .amount(request.amount())
-                                                             .status(ReservationStatus.RESERVED.name())
-                                                             .reservedAt(Instant.now().toEpochMilli())
+                                                             .reservedAt(response.reservedAt())
+                                                             .releasedAt(response.releasedAt())
                                                              .build()
             );
 
@@ -187,10 +193,14 @@ public class WalletServiceImpl implements WalletService {
             return response;
 
         } catch (AppException e) {
-            log.error("transfer.failed reason={}", e.getMessage(), e);
+            log.error("reserve.failed reason={}", e.getMessage(), e);
+            throw e;
+        } catch (Exception e) {
+            log.error("reserve.unexpected.failed reason={}", e.getMessage(), e);
+            throw e;
+        } finally {
             if (firstAcquire) cacheRepo.releaseLock(firstLock);
             if (secondAcquire) cacheRepo.releaseLock(secondLock);
-            throw e;
         }
     }
 
@@ -205,7 +215,7 @@ public class WalletServiceImpl implements WalletService {
 
         ReservationRecord record = existing.get();
         return new ReserveBalanceResponse(ReservationStatus.valueOf(record.status()), record.transactionId(),
-                                          idempotencyKey);
+                                          idempotencyKey, record.reservedAt(), record.releasedAt());
     }
 
     @Override
@@ -219,6 +229,7 @@ public class WalletServiceImpl implements WalletService {
                     ReservationStatus.valueOf(reservationRecord.status()),
                     reservationRecord.transactionId(),
                     request.originIdempotencyKey(),
+                    reservationRecord.reservedAt(),
                     reservationRecord.releasedAt()
             );
         }

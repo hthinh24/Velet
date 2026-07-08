@@ -12,6 +12,7 @@ import com.velet.wallet.utils.RedisHashCodec;
 import com.velet.wallet.models.BalanceComponents;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -133,8 +134,12 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
     @Override
     public Optional<ReservationRecord> getReservationRecord(String idempotencyKey) {
         String key = RESERVATION_PREFIX + idempotencyKey;
+
+        Map<@NonNull Object, Object> entries = hashRedisTemplate.opsForHash().entries(key);
+        if (entries == null || entries.isEmpty()) return Optional.empty();
+
         ReservationRecord record =
-                redisHashCodec.fromHash(hashRedisTemplate.opsForHash().entries(key), ReservationRecord.class);
+                redisHashCodec.fromHash(entries, ReservationRecord.class);
         return Optional.ofNullable(record);
     }
 
