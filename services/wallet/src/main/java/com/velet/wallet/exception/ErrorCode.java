@@ -26,6 +26,8 @@ public enum ErrorCode {
     LOCK_ACQUISITION_FAILED(503, "Failed to acquire lock", HttpStatus.SERVICE_UNAVAILABLE),
 
     RESERVATION_NOT_FOUND(404, "Reservation not found", HttpStatus.NOT_FOUND),
+    INVALID_RESERVATION_STATE(422, "Invalid reservation state", HttpStatus.UNPROCESSABLE_ENTITY),
+    DUPLICATE_RELEASE(409, "Duplicate release request", HttpStatus.CONFLICT),
 
     REDIS_EXECUTION_FAILED(500, "Failed to execute Redis operation", HttpStatus.INTERNAL_SERVER_ERROR),
     WALLET_CACHE_MISS(404, "Wallet cache miss", HttpStatus.NOT_FOUND)

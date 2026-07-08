@@ -7,7 +7,8 @@ import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 
 public record ReserveBalanceRequest(
-        @NotBlank String walletId,
+        @NotBlank String fromWalletId,
+        @NotBlank String toWalletId,
         @NotNull @Positive BigDecimal amount,
         @NotBlank String idempotencyKey
 ) {}

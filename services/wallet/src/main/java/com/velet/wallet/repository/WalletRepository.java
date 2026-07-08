@@ -2,6 +2,7 @@ package com.velet.wallet.repository;
 
 import com.velet.wallet.models.Wallet;
 
+import com.velet.wallet.models.enums.AccountType;
 import io.lettuce.core.dynamic.annotation.Param;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,6 +10,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 
 import jakarta.persistence.LockModeType;
+
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -16,6 +19,8 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
     @Query("SELECT a FROM Wallet a WHERE a.ownerId = :ownerId")
     List<Wallet> findAllByOwnerId(String ownerId);
 
+    @Query("SELECT w FROM Wallet w WHERE w.type IN :types")
+    List<Wallet> findByAccountTypeIn(@Param("types") Collection<AccountType> types);
     
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT w FROM Wallet w WHERE w.id = :walletId")

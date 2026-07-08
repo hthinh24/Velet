@@ -1,5 +1,6 @@
 package com.velet.wallet.models;
 
+import com.velet.wallet.models.enums.CancelReason;
 import com.velet.wallet.models.enums.TransactionType;
 import com.velet.wallet.models.enums.TransactionStatus;
 import jakarta.persistence.*;
@@ -48,6 +49,11 @@ public class Transaction extends BaseAuditableEntity {
     @Column(name = "status", nullable = false, columnDefinition = "transaction_status")
     @Builder.Default
     private TransactionStatus status = TransactionStatus.PENDING;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcType(PostgreSQLEnumJdbcType.class)
+    @Column(name = "cancel_reason", columnDefinition = "cancel_reason")
+    private CancelReason cancelReason;
 
     @Column(name = "idempotency_key", nullable = false, unique = true)
     private String idempotencyKey;
