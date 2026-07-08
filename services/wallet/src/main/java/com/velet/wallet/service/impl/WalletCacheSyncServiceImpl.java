@@ -2,6 +2,7 @@ package com.velet.wallet.service.impl;
 
 import com.velet.wallet.dto.cache.ReservationRecord;
 import com.velet.wallet.dto.event.BalanceReservationCreatedEvent;
+import com.velet.wallet.dto.event.TransactionCanceledEvent;
 import com.velet.wallet.dto.event.TransferCompletedEvent;
 import com.velet.wallet.models.ProcessedEvent;
 import com.velet.wallet.models.enums.ProcessingStatus;
@@ -70,6 +71,24 @@ public class WalletCacheSyncServiceImpl implements WalletCacheSyncService {
         log.info("Reserve event with id: {} processed successfully", eventId);
     }
 
+    @Override
+    public void releaseBalance(Long eventId, TransactionCanceledEvent payload) {
+        ProcessedEvent existing = tryClaim(eventId);
+
+        if (existing != null && existing.getStatus() == ProcessingStatus.DONE) {
+            log.info("Event {} already fully processed, skip", eventId);
+            return;
+        }
+
+        releaseBalanceOnCache(payload);
+
+        transactionTemplate.executeWithoutResult(status ->
+                                                         processedEventRepository.markDone(eventId, Instant.now()));
+
+        log.info("Release event with id: {} processed successfully", eventId);
+    }
+
+
     /**
      * Try to claim the event for processing by inserting a new record into the processed_event table.
      * Return if existed
@@ -114,5 +133,19 @@ public class WalletCacheSyncServiceImpl implements WalletCacheSyncService {
             log.warn("cache.reserve.failed walletId={} — will self-heal on cache miss",
                      event.fromWalletId(), e);
         }
+    }
+
+    private void releaseBalanceOnCache(TransactionCanceledEvent payload) {
+        try {
+            cacheRepo.incrementCounter(payload.fromWalletId(), PENDING_DEBITS, payload.amount().negate().longValueExact());
+            cacheRepo.incrementCounter(payload.toWalletId(), PENDING_CREDITS, payload.amount().negate().longValueExact());
+
+            cacheRepo.increaseWalletBalance(payload.fromWalletId(), AVAILABLE_BALANCE, payload.amount());
+            cacheRepo.increaseWalletBalance(payload.toWalletId(), PENDING_BALANCE, payload.amount().negate());
+        } catch (Exception e) {
+            log.warn("cache.release.failed walletId={} — will self-heal on cache miss",
+                     payload.fromWalletId(), e);
+        }
+
     }
 }

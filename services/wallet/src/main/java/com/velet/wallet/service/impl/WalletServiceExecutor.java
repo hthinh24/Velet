@@ -272,7 +272,7 @@ public class WalletServiceExecutor {
 
         // Compensation
         Wallet sourceWallet = transaction.getSourceWallet();
-        Wallet destinationWallet = transaction.getSourceWallet();
+        Wallet destinationWallet = transaction.getDestinationWallet();
         Long amountInCents = transaction.getAmount();
 
         walletRepository.findByIdWithLock(sourceWallet.getId())

@@ -45,20 +45,11 @@ public class OutboxPoller {
                 MessageProperties props = new MessageProperties();
                 props.setContentType(MessageProperties.CONTENT_TYPE_JSON);
                 props.setMessageId(String.valueOf(event.getId()));
+                props.getHeaders().put("__TypeId__", event.getEventType());
 
                 Message message = new Message(event.getPayload().getBytes(StandardCharsets.UTF_8), props);
 
                 rabbitTemplate.send(RabbitMQConfig.WALLET_EXCHANGE, routingKey, message);
-
-//                rabbitTemplate.convertAndSend(
-//                        RabbitMQConfig.WALLET_EXCHANGE,
-//                        routingKey,
-//                        event.getPayload(),
-//                        message -> {
-//                            message.getMessageProperties().setMessageId(String.valueOf(event.getId()));\
-//                            return message;
-//                        }
-//                );
 
                 successIds.add(event.getId());
             } catch (AmqpException ex) {

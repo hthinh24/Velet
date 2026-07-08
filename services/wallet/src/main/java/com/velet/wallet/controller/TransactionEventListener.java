@@ -8,6 +8,7 @@ import com.velet.wallet.dto.event.TransferCompletedEvent;
 import com.velet.wallet.service.WalletCacheSyncService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.annotation.RabbitHandler;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.messaging.handler.annotation.Header;
@@ -18,11 +19,17 @@ import java.io.IOException;
 @Component
 @RequiredArgsConstructor
 @Slf4j
+@RabbitListener(
+        queues = {
+                RabbitMQConfig.WALLET_CACHE_SYNC_QUEUE,
+                RabbitMQConfig.WALLET_CACHE_RESERVATION_QUEUE
+        },
+        ackMode = "MANUAL")
 public class TransactionEventListener {
 
     private final WalletCacheSyncService walletCacheSyncService;
 
-    @RabbitListener(queues = RabbitMQConfig.WALLET_CACHE_SYNC_QUEUE, ackMode = "MANUAL")
+    @RabbitHandler
     public void onTransferCompleted(
             TransferCompletedEvent event,
             @Header(AmqpHeaders.MESSAGE_ID) String messageId,
@@ -37,7 +44,7 @@ public class TransactionEventListener {
         channel.basicAck(tag, false);
     }
 
-    @RabbitListener(queues = RabbitMQConfig.WALLET_CACHE_RESERVATION_QUEUE, ackMode = "MANUAL")
+    @RabbitHandler
     public void onBalanceReservationCreated(
             BalanceReservationCreatedEvent event,
             @Header(AmqpHeaders.MESSAGE_ID) String messageId,
@@ -52,7 +59,7 @@ public class TransactionEventListener {
         channel.basicAck(tag, false);
     }
 
-    @RabbitListener(queues = RabbitMQConfig.WALLET_CACHE_RESERVATION_QUEUE, ackMode = "MANUAL")
+    @RabbitHandler
     public void onPaymentCanceled(
             TransactionCanceledEvent event,
             @Header(AmqpHeaders.MESSAGE_ID) String messageId,
@@ -61,8 +68,8 @@ public class TransactionEventListener {
 
         log.info("Received transaction canceled event: {}", event);
 
-//        Long eventId = Long.parseLong(messageId);
-//        walletCacheSyncService.reserveBalance(eventId, event);
+        Long eventId = Long.parseLong(messageId);
+        walletCacheSyncService.releaseBalance(eventId, event);
 
         channel.basicAck(tag, false);
     }
