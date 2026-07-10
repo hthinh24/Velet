@@ -71,3 +71,7 @@ management:
 logging:
   pattern:
     level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
+
+clients:
+  wallet:
+    base-url: ${WALLET_SERVICE_URL:http://localhost:8082}
