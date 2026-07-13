@@ -1,4 +1,4 @@
-package com.velet.payment.app.client;
+package com.velet.payment.client;
 
 import com.velet.payment.dto.client.MerchantMdrResponse;
 
