@@ -1,5 +1,5 @@
 package com.velet.payment.models.enums;
 
 public enum AggregateType {
-    TRANSACTION,
+    PAYMENT
 }

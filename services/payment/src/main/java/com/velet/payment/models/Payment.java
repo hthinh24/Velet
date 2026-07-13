@@ -83,4 +83,7 @@ public class Payment extends BaseAuditableEntity {
 
     @Column(name = "completed_at")
     private Instant completedAt;
+
+    @Version
+    private Long version;
 }

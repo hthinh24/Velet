@@ -33,13 +33,13 @@ public class Outbox extends BaseCreatableEntity {
     @JdbcType(PostgreSQLEnumJdbcType.class)
     @Column(name = "aggregate_type", nullable = false, columnDefinition = "aggregate_type")
     @Builder.Default
-    private AggregateType aggregateType = AggregateType.TRANSACTION;
+    private AggregateType aggregateType = AggregateType.PAYMENT;
 
     @Enumerated(EnumType.STRING)
     @JdbcType(PostgreSQLEnumJdbcType.class)
     @Column(name = "event_type", nullable = false, columnDefinition = "event_type")
     @Builder.Default
-    private EventType eventType = EventType.TRANSFER_COMPLETED;
+    private EventType eventType = EventType.PAYMENT_CONFIRMED;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "payload", nullable = false)
