@@ -1,6 +1,6 @@
 package com.velet.payment.client;
 
-import com.velet.payment.dto.client.WalletBalanceCheckResponse;
+import com.velet.payment.dto.client.WalletBalanceResponse;
 import com.velet.payment.dto.client.WalletReserveRequest;
 import com.velet.payment.dto.client.WalletReserveResponse;
 
@@ -9,6 +9,6 @@ import com.velet.payment.dto.client.WalletReserveResponse;
  * with a gRPC implementation if needed
  */
 public interface WalletClient {
-    WalletBalanceCheckResponse checkBalance(Long walletId);
+    WalletBalanceResponse checkBalance(Long walletId);
     WalletReserveResponse reserve(WalletReserveRequest request);
 }

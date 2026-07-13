@@ -2,7 +2,7 @@ package com.velet.payment.client.impl;
 
 import com.velet.payment.client.WalletClient;
 import com.velet.payment.client.feign.WalletFeignClient;
-import com.velet.payment.dto.client.WalletBalanceCheckResponse;
+import com.velet.payment.dto.client.WalletBalanceResponse;
 import com.velet.payment.dto.client.WalletReserveRequest;
 import com.velet.payment.dto.client.WalletReserveResponse;
 import com.velet.payment.dto.common.ApiResponse;
@@ -22,10 +22,10 @@ public class WalletRestClient implements WalletClient {
     private final WalletFeignClient walletFeignClient;
 
     @Override
-    public WalletBalanceCheckResponse checkBalance(Long walletId) {
+    public WalletBalanceResponse checkBalance(Long walletId) {
         log.debug("wallet.balance-check walletId={}", walletId);
         try {
-            ApiResponse<WalletBalanceCheckResponse> response = walletFeignClient.checkBalance(walletId);
+            ApiResponse<WalletBalanceResponse> response = walletFeignClient.checkBalance(walletId);
 
             if (response == null || response.getData() == null) {
                 throw new AppException(ErrorCode.WALLET_SERVICE_UNAVAILABLE);

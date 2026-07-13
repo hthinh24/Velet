@@ -1,6 +1,6 @@
 package com.velet.payment.dto.client;
 
-public record WalletBalanceCheckResponse(
+public record WalletBalanceResponse(
         Long availableBalance,
         String status
 ) {}

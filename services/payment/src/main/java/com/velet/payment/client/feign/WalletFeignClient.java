@@ -1,6 +1,6 @@
 package com.velet.payment.client.feign;
 
-import com.velet.payment.dto.client.WalletBalanceCheckResponse;
+import com.velet.payment.dto.client.WalletBalanceResponse;
 import com.velet.payment.dto.client.WalletReserveRequest;
 import com.velet.payment.dto.client.WalletReserveResponse;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -12,9 +12,9 @@ import com.velet.payment.dto.common.ApiResponse;
 
 @FeignClient(name = "wallet-feign-client", url = "${clients.wallet.base-url}")
 public interface WalletFeignClient {
-    @GetMapping("/api/v1/wallet/{walletId}/balance-check")
-    ApiResponse<WalletBalanceCheckResponse> checkBalance(@PathVariable("walletId") Long walletId);
+    @GetMapping("/internal/v1/wallets/{walletId}/balance-check")
+    ApiResponse<WalletBalanceResponse> checkBalance(@PathVariable("walletId") Long walletId);
 
-    @PostMapping("/api/v1/wallet/reserve")
+    @PostMapping("/api/v1/wallets/reserve")
     ApiResponse<WalletReserveResponse> reserve(@RequestBody WalletReserveRequest request);
 }
