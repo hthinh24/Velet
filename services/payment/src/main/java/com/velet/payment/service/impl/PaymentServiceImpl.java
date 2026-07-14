@@ -124,6 +124,101 @@ public class PaymentServiceImpl implements PaymentService {
                                     .build();
     }
 
+    @Override
+    public void processPayment(Long paymentId) {
+        Payment payment = paymentRepository.findById(paymentId)
+                                           .orElse(null);
+        if (payment == null || payment.getStatus() != PaymentStatus.IN_PROGRESS) {
+            log.debug("payment.process.skip paymentId={} (locked or already processed)", paymentId);
+            return;
+        }
+
+        log.info("payment.process.start paymentId={}", paymentId);
+
+        MerchantMdrResponse mdrResponse = merchantClient.getMdrRate(payment.getMerchantId());
+        BigDecimal mdrRate = mdrResponse.mdrRate();
+
+        long mdrFee = mdrCalculator.computeMdrFee(payment.getOriginalPrice(), mdrRate);
+        long merchantNet = mdrCalculator.computeMerchantNet(payment.getOriginalPrice(), 0L, mdrFee);
+        long finalPrice = payment.getOriginalPrice(); // no voucher/coin in MVP
+
+        String reserveIdempotencyKey = "pay-reserve-" + payment.getIdempotencyKey();
+        WalletReserveRequest reserveRequest = new WalletReserveRequest(
+                String.valueOf(payment.getUserId()),
+                String.valueOf(payment.getMerchantId()),
+                BigDecimal.valueOf(finalPrice),
+                reserveIdempotencyKey
+        );
+
+        WalletReserveResponse reserveResponse;
+        try {
+            reserveResponse = walletClient.reserve(reserveRequest);
+        } catch (AppException ex) {
+            log.warn("payment.process.reserve.failed paymentId={} reason={}", paymentId, ex.getMessage());
+            return;
+        }
+
+        log.info("payment.process.reserve.success paymentId={} walletTxId={}",
+                 paymentId, reserveResponse.transactionId());
+
+        Payment confirmedPayment = confirmPaymentWithOptimisticLock(payment, mdrFee, finalPrice, merchantNet);
+        paymentCacheRepository.put(confirmedPayment);
+
+        log.info("payment.process.completed paymentId={} finalPrice={} mdrFee={}", paymentId, finalPrice, mdrFee);
+    }
+
+    private Payment confirmPaymentWithOptimisticLock(Payment payment, long mdrFee, long finalPrice, long merchantNet) {
+        payment.setStatus(PaymentStatus.COMPLETED);
+        payment.setMdrFee(mdrFee);
+        payment.setFinalPrice(finalPrice);
+        payment.setMerchantNet(merchantNet);
+        payment.setCompletedAt(Instant.now());
+
+        PaymentConfirmedEventPayload paymentConfirmedEvent =
+                buildPaymentConfirmedEvent(payment, mdrFee, finalPrice, merchantNet);
+        String payload = toJson(paymentConfirmedEvent);
+
+        return transactionTemplate.execute(txStatus -> {
+            Payment comfirmedPayment = paymentRepository.save(payment);
+
+            outboxRepository.save(Outbox.builder()
+                                        .aggregateId(comfirmedPayment.getId())
+                                        .aggregateType(AggregateType.PAYMENT)
+                                        .eventType(EventType.PAYMENT_CONFIRMED)
+                                        .payload(payload)
+                                        .build());
+
+            return comfirmedPayment;
+        });
+
+    }
+
+    private PaymentConfirmedEventPayload buildPaymentConfirmedEvent(Payment payment, long mdrFee, long finalPrice,
+                                                                    long merchantNet) {
+        return PaymentConfirmedEventPayload.builder()
+                                           .aggregateId(payment.getId())
+                                           .userWalletId(
+                                                   payment.getUserId())
+                                           .merchantWalletId(
+                                                   payment.getMerchantId())
+                                           .finalPrice(finalPrice)
+                                           .merchantNet(merchantNet)
+                                           .mdrFee(mdrFee)
+                                           .systemSubsidy(0L)
+                                           .voucherId(null)
+                                           .coinAmount(0L)
+                                           .voucherFundedBy(null)
+                                           .build();
+    }
+
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (JsonProcessingException e) {
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+    }
+
     private PaymentStatusResponse toPaymentStatusResponse(Payment payment) {
         return PaymentStatusResponse.builder()
                                     .paymentId(payment.getId())
