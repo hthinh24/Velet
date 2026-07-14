@@ -17,11 +17,13 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     @Query(value = """
             SELECT p.id FROM Payment p
-            WHERE p.status =: status
+            WHERE p.status = :status
+                AND p.createdAt >= :cutoff
             ORDER BY p.id ASC
             """)
     List<Long> findInProgressIds(
-            @Param("status") String status,
+            @Param("status") PaymentStatus status,
+            @Param("cutoff") Instant cutoff,
             Pageable pageable
     );
 
