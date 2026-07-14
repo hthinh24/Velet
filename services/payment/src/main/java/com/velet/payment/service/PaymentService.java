@@ -8,4 +8,5 @@ public interface PaymentService {
     CreatePaymentResponse initiatePayment(CreatePaymentRequest request, String idempotencyKey);
     PaymentStatusResponse getById(Long id);
     PaymentStatusResponse getByIdempotencyKey(String key);
+    void processPayment(Long paymentId);
 }
