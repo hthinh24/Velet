@@ -1,30 +1,15 @@
 package com.velet.identity.exception;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.velet.identity.dto.common.ErrorResponse;
 
 @ControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
-
-    @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<ErrorResponse> handleMaxSizeException(MaxUploadSizeExceededException exc) {
-        log.error(exc.getMessage(), exc);
-
-        return ResponseEntity
-                .status(HttpStatus.PAYLOAD_TOO_LARGE)
-                .body(ErrorResponse.builder()
-                                   .code(413)
-                                   .message(HttpStatus.PAYLOAD_TOO_LARGE.getReasonPhrase())
-                                   .build());
-    }
-
     @ExceptionHandler(value = AppException.class)
     ResponseEntity<ErrorResponse> handlingAppException(AppException exception) {
         log.error(exception.getMessage(), exception);

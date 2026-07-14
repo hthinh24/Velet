@@ -1,11 +1,14 @@
 server:
-  port: 8082
+  port: 8083
 
 spring:
   application:
     name: velet-payment-service
   config:
     import: optional:file:.env[.properties]
+  threads:
+    virtual:
+      enabled: true
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/payment}
     username: ${DB_USERNAME:postgres}
@@ -36,6 +39,8 @@ spring:
     type: redis
 
   rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
     publisher-confirm-type: correlated
     publisher-returns: true
     listener:
@@ -71,3 +76,9 @@ management:
 logging:
   pattern:
     level: "%5p [${spring.application.name:},%X{traceId:-},%X{spanId:-}]"
+
+clients:
+  wallet:
+    base-url: ${WALLET_SERVICE_URL:http://localhost:8082}
+  merchant:
+    base-url: ${MERCHANT_SERVICE_URL:http://localhost:8083}

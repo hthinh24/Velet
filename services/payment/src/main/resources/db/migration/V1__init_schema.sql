@@ -6,6 +6,8 @@ CREATE TYPE payment_status AS ENUM ('IN_PROGRESS', 'COMPLETED', 'CANCELLED');
 
 CREATE TYPE voucher_funded_by AS ENUM ('PLATFORM', 'MERCHANT');
 
+CREATE TYPE cancel_reason AS ENUM ('PAYMENT_FAILED', 'PAYMENT_TIMEOUT');
+
 -- ------------------------------------------------------------
 -- PAYMENT
 -- ------------------------------------------------------------
@@ -34,7 +36,12 @@ CREATE TABLE payments
 
     created_at        TIMESTAMPTZ    NOT NULL DEFAULT now(),
     updated_at        TIMESTAMPTZ    NOT NULL DEFAULT now(),
-    completed_at      TIMESTAMPTZ
+    completed_at      TIMESTAMPTZ,
+
+    cancel_reason     cancel_reason,
+    cancelled_at      TIMESTAMPTZ,
+
+    version           BIGINT         NOT NULL DEFAULT 1
 );
 
 CREATE INDEX idx_payment_reconciliation
@@ -53,7 +60,7 @@ CREATE TYPE aggregate_type AS ENUM ('PAYMENT');
 
 CREATE TYPE event_type AS ENUM ('PAYMENT_CONFIRMED', 'PAYMENT_CANCELLED');
 
-CREATE TYPE outbox_status AS ENUM ('PENDING', 'SENT', 'FAILED');
+CREATE TYPE outbox_status AS ENUM ('PENDING', 'PROCESSING', 'SENT', 'FAILED');
 
 CREATE TABLE outbox
 (

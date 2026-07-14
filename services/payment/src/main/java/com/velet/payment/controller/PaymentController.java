@@ -15,7 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/payments")
+@RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
 @Slf4j
 public class PaymentController {
@@ -24,7 +24,7 @@ public class PaymentController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<CreatePaymentResponse>> initiatePayment(
-            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestHeader("X-Idempotency-Key") String idempotencyKey,
             @RequestBody @Valid CreatePaymentRequest request
     ) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {

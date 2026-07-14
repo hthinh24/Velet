@@ -21,7 +21,7 @@ public class KycGrantedFilter extends OncePerRequestFilter {
 
     private static final List<String> SECURE_PATHS = List.of(
             "/api/v1/kyc/**",
-            "/api/v1/wallet/**",
+            "/api/v1/wallets/**",
             "/api/v1/payments/**"
     );
 

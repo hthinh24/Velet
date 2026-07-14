@@ -5,10 +5,7 @@ import com.velet.wallet.dto.cache.ReservationRecord;
 import com.velet.wallet.dto.request.ReleaseBalanceRequest;
 import com.velet.wallet.dto.request.ReserveBalanceRequest;
 import com.velet.wallet.dto.request.TransferRequest;
-import com.velet.wallet.dto.response.ReleaseBalanceResponse;
-import com.velet.wallet.dto.response.ReserveBalanceResponse;
-import com.velet.wallet.dto.response.WalletInfo;
-import com.velet.wallet.dto.response.TransferResponse;
+import com.velet.wallet.dto.response.*;
 import com.velet.wallet.exception.AppException;
 import com.velet.wallet.exception.ErrorCode;
 import com.velet.wallet.models.BalanceComponents;
@@ -49,6 +46,15 @@ public class WalletServiceImpl implements WalletService {
         WalletInfo walletInfo = getWallet(walletId);
         validateWalletOwner(walletInfo.ownerId(), Long.parseLong(userId));
         return walletInfo;
+    }
+
+    @Override
+    public WalletBalanceResponse getWalletBalance(Long walletId) {
+        WalletInfo walletInfo = getWallet(String.valueOf(walletId));
+        return new WalletBalanceResponse(
+                walletInfo.availableBalance(),
+                walletInfo.status().name()
+        );
     }
 
     /**
