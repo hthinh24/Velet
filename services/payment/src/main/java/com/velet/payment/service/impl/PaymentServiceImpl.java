@@ -3,6 +3,8 @@ package com.velet.payment.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.velet.payment.dto.client.WalletBalanceResponse;
+import com.velet.payment.dto.event.PaymentCancelledEventPayload;
+import com.velet.payment.models.enums.CancelReason;
 import com.velet.payment.repository.PaymentCacheRepository;
 import com.velet.payment.client.MerchantClient;
 import com.velet.payment.client.WalletClient;
@@ -30,10 +32,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -215,6 +220,7 @@ public class PaymentServiceImpl implements PaymentService {
         try {
             return objectMapper.writeValueAsString(obj);
         } catch (JsonProcessingException e) {
+            log.info(e.getMessage());
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
     }
@@ -226,6 +232,51 @@ public class PaymentServiceImpl implements PaymentService {
                                     .finalPrice(payment.getFinalPrice())
                                     .cancelledReason(null)
                                     .build();
+    }
+
+    @Override
+    @Transactional
+    public void cancelTimedOutPayments(Instant cutoff, int batchSize) {
+        List<Payment> payments =
+                paymentRepository.findAndLockTimedOutPayments(PaymentStatus.IN_PROGRESS.name(), cutoff, batchSize);
+        log.info("payment.cancelled timed-out payments found count={}", payments.size());
+        if (payments.isEmpty()) {
+            return;
+        }
+
+        List<Long> cancelledIds = new ArrayList<>(payments.size());
+        List<Outbox> outboxes = new ArrayList<>(payments.size());
+        for (Payment payment : payments) {
+            Instant now = Instant.now();
+            payment.setStatus(PaymentStatus.CANCELLED);
+            payment.setCancelReason(CancelReason.PAYMENT_TIMEOUT);
+            payment.setCancelledAt(now);
+
+            PaymentCancelledEventPayload payload = PaymentCancelledEventPayload.builder()
+                                                                               .aggregateId(payment.getId())
+                                                                               .userWalletId(payment.getUserId())
+                                                                               .merchantWalletId(
+                                                                                       payment.getMerchantId())
+                                                                               .reason(CancelReason.PAYMENT_TIMEOUT.name())
+                                                                               .cancelledAt(now.toEpochMilli())
+                                                                               .build();
+
+            outboxes.add(Outbox.builder()
+                               .aggregateId(payment.getId())
+                               .aggregateType(AggregateType.PAYMENT)
+                               .eventType(EventType.PAYMENT_CANCELLED)
+                               .payload(toJson(payload))
+                               .build());
+
+            cancelledIds.add(payment.getId());
+        }
+
+        paymentRepository.saveAll(payments);
+        outboxRepository.saveAll(outboxes);
+
+        log.info("payment.cancelled timed-out payments cancelledIds={}", cancelledIds);
+
+        paymentCacheRepository.invalidateAll(cancelledIds);
     }
 
     private CreatePaymentResponse getPaymentByIdempotencyKey(String idempotencyKey) {

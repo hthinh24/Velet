@@ -6,6 +6,8 @@ CREATE TYPE payment_status AS ENUM ('IN_PROGRESS', 'COMPLETED', 'CANCELLED');
 
 CREATE TYPE voucher_funded_by AS ENUM ('PLATFORM', 'MERCHANT');
 
+CREATE TYPE cancel_reason AS ENUM ('PAYMENT_FAILED', 'PAYMENT_TIMEOUT');
+
 -- ------------------------------------------------------------
 -- PAYMENT
 -- ------------------------------------------------------------
@@ -35,6 +37,9 @@ CREATE TABLE payments
     created_at        TIMESTAMPTZ    NOT NULL DEFAULT now(),
     updated_at        TIMESTAMPTZ    NOT NULL DEFAULT now(),
     completed_at      TIMESTAMPTZ,
+
+    cancel_reason     cancel_reason,
+    cancelled_at      TIMESTAMPTZ,
 
     version           BIGINT         NOT NULL DEFAULT 1
 );

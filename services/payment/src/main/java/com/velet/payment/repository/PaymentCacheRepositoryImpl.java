@@ -5,11 +5,14 @@ import com.velet.payment.models.Payment;
 import com.velet.payment.utils.RedisHashCodec;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -28,12 +31,12 @@ public class PaymentCacheRepositoryImpl implements PaymentCacheRepository {
     @Override
     public void put(Payment payment) {
         PaymentCacheEntry entry = PaymentCacheEntry.builder()
-                .paymentId(payment.getId())
-                .status(payment.getStatus().name())
-                .finalPrice(payment.getFinalPrice())
-                .cancelledReason(null)        // no cancelled reason field in MVP
-                .updatedAt(Instant.now().toString())
-                .build();
+                                                   .paymentId(payment.getId())
+                                                   .status(payment.getStatus().name())
+                                                   .finalPrice(payment.getFinalPrice())
+                                                   .cancelledReason(null)        // no cancelled reason field in MVP
+                                                   .updatedAt(Instant.now().toString())
+                                                   .build();
 
         String key = PAYMENT_KEY_PREFIX + payment.getId();
 
@@ -71,5 +74,24 @@ public class PaymentCacheRepositoryImpl implements PaymentCacheRepository {
         if (paymentIdRaw == null) return Optional.empty();
 
         return getById(Long.parseLong(paymentIdRaw.toString()));
+    }
+
+    @Override
+    public void invalidateAll(List<Long> cancelledIds) {
+        if (cancelledIds == null || cancelledIds.isEmpty()) {
+            return;
+        }
+
+        List<String> keys = cancelledIds.stream()
+                                        .flatMap(p -> java.util.stream.Stream.of(
+                                                PAYMENT_KEY_PREFIX + p,
+                                                PAYMENT_IDEMPOTENCY_KEY_PREFIX + p))
+                                        .toList();
+
+        try {
+            redisTemplate.delete(keys);
+        } catch (Exception ex) {
+            log.warn("Failed to invalidate payment status cache for ids={}", cancelledIds, ex);
+        }
     }
 }

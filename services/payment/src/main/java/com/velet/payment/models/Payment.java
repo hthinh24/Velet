@@ -1,5 +1,6 @@
 package com.velet.payment.models;
 
+import com.velet.payment.models.enums.CancelReason;
 import com.velet.payment.models.enums.PaymentStatus;
 import com.velet.payment.models.enums.VoucherFundBy;
 import jakarta.persistence.*;
@@ -83,6 +84,14 @@ public class Payment extends BaseAuditableEntity {
 
     @Column(name = "completed_at")
     private Instant completedAt;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcType(PostgreSQLEnumJdbcType.class)
+    @Column(name = "cancel_reason", columnDefinition = "cancel_reason")
+    private CancelReason cancelReason;
+
+    @Column(name = "cancelled_at")
+    private Instant cancelledAt;
 
     @Version
     private Long version;
