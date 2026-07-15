@@ -1,10 +1,10 @@
-package com.velet.wallet.controller;
+package com.velet.wallet.infrastructure.consumer.wallet;
 
 import com.rabbitmq.client.Channel;
-import com.velet.wallet.configuaration.RabbitMQConfig;
-import com.velet.wallet.dto.event.BalanceReservationCreatedEvent;
-import com.velet.wallet.dto.event.TransactionCanceledEvent;
-import com.velet.wallet.dto.event.TransferCompletedEvent;
+import com.velet.wallet.configuaration.rabbitmq.WalletExchangeConfig;
+import com.velet.wallet.infrastructure.consumer.wallet.event.BalanceReservationCreatedEvent;
+import com.velet.wallet.infrastructure.consumer.wallet.event.TransactionCancelledEvent;
+import com.velet.wallet.infrastructure.consumer.wallet.event.TransferCompletedEvent;
 import com.velet.wallet.service.WalletCacheSyncService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,8 +21,8 @@ import java.io.IOException;
 @Slf4j
 @RabbitListener(
         queues = {
-                RabbitMQConfig.WALLET_CACHE_SYNC_QUEUE,
-                RabbitMQConfig.WALLET_CACHE_RESERVATION_QUEUE
+                WalletExchangeConfig.WALLET_CACHE_SYNC_QUEUE,
+                WalletExchangeConfig.WALLET_CACHE_RESERVATION_QUEUE
         },
         ackMode = "MANUAL")
 public class TransactionEventListener {
@@ -61,7 +61,7 @@ public class TransactionEventListener {
 
     @RabbitHandler
     public void onPaymentCanceled(
-            TransactionCanceledEvent event,
+            TransactionCancelledEvent event,
             @Header(AmqpHeaders.MESSAGE_ID) String messageId,
             Channel channel,
             @Header(AmqpHeaders.DELIVERY_TAG) long tag) throws IOException {

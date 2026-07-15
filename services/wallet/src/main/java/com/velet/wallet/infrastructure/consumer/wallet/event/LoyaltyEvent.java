@@ -1,4 +1,4 @@
-package com.velet.wallet.dto.event;
+package com.velet.wallet.infrastructure.consumer.wallet.event;
 
 import java.math.BigDecimal;
 

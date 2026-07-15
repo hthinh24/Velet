@@ -2,6 +2,7 @@ package com.velet.wallet.service.impl;
 
 import com.velet.wallet.dto.cache.BalanceCounter;
 import com.velet.wallet.dto.cache.ReservationRecord;
+import com.velet.wallet.dto.request.ConfirmReservationRequest;
 import com.velet.wallet.dto.request.ReleaseBalanceRequest;
 import com.velet.wallet.dto.request.ReserveBalanceRequest;
 import com.velet.wallet.dto.request.TransferRequest;
@@ -208,6 +209,11 @@ public class WalletServiceImpl implements WalletService {
             if (firstAcquire) cacheRepo.releaseLock(firstLock);
             if (secondAcquire) cacheRepo.releaseLock(secondLock);
         }
+    }
+
+    @Override
+    public ConfirmReservationResponse confirmReservation(ConfirmReservationRequest request) {
+        return walletServiceExecutor.confirmReservation(request);
     }
 
     @Override

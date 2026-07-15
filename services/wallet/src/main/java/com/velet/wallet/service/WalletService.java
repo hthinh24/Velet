@@ -1,5 +1,6 @@
 package com.velet.wallet.service;
 
+import com.velet.wallet.dto.request.ConfirmReservationRequest;
 import com.velet.wallet.dto.request.ReleaseBalanceRequest;
 import com.velet.wallet.dto.request.ReserveBalanceRequest;
 import com.velet.wallet.dto.request.TransferRequest;
@@ -10,6 +11,7 @@ public interface WalletService {
     TransferResponse transfer(TransferRequest transferRequest);
     ReserveBalanceResponse reserve(ReserveBalanceRequest reserveBalanceRequest);
     ReserveBalanceResponse getReservationStatus(String idempotencyKey);
+    ConfirmReservationResponse confirmReservation(ConfirmReservationRequest request);
     ReleaseBalanceResponse release(ReleaseBalanceRequest releaseBalanceRequest);
 
     // Internal methods for internal service calls
