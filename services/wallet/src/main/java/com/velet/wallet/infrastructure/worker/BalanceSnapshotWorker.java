@@ -1,4 +1,4 @@
-package com.velet.wallet.worker;
+package com.velet.wallet.infrastructure.worker;
 
 import com.velet.wallet.models.BalanceComponents;
 import com.velet.wallet.models.BalanceSnapshot;

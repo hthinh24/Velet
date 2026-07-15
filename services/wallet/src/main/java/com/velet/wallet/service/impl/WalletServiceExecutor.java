@@ -3,10 +3,10 @@ package com.velet.wallet.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.velet.wallet.app.SystemAccountCache;
-import com.velet.wallet.dto.event.LoyaltyEvent;
-import com.velet.wallet.dto.event.BalanceReservationCreatedEvent;
-import com.velet.wallet.dto.event.TransactionCanceledEvent;
-import com.velet.wallet.dto.event.TransferCompletedEvent;
+import com.velet.wallet.infrastructure.consumer.wallet.event.LoyaltyEvent;
+import com.velet.wallet.infrastructure.consumer.wallet.event.BalanceReservationCreatedEvent;
+import com.velet.wallet.infrastructure.consumer.wallet.event.TransactionCancelledEvent;
+import com.velet.wallet.infrastructure.consumer.wallet.event.TransferCompletedEvent;
 import com.velet.wallet.dto.request.ReleaseBalanceRequest;
 import com.velet.wallet.dto.request.ReserveBalanceRequest;
 import com.velet.wallet.dto.request.TransferRequest;
@@ -406,7 +406,7 @@ public class WalletServiceExecutor {
                                                  BigDecimal amount,
                                                  Instant occurredAt) {
         try {
-            var event = new TransactionCanceledEvent(
+            var event = new TransactionCancelledEvent(
                     transactionId,
                     fromWalletId,
                     toWalletId,

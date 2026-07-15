@@ -1,6 +1,6 @@
-package com.velet.wallet.worker;
+package com.velet.wallet.infrastructure.worker;
 
-import com.velet.wallet.configuaration.RabbitMQConfig;
+import com.velet.wallet.configuaration.rabbitmq.WalletExchangeConfig;
 import com.velet.wallet.models.Outbox;
 import com.velet.wallet.repository.OutboxRepository;
 import lombok.RequiredArgsConstructor;
@@ -49,7 +49,7 @@ public class OutboxPoller {
 
                 Message message = new Message(event.getPayload().getBytes(StandardCharsets.UTF_8), props);
 
-                rabbitTemplate.send(RabbitMQConfig.WALLET_EXCHANGE, routingKey, message);
+                rabbitTemplate.send(WalletExchangeConfig.WALLET_EXCHANGE, routingKey, message);
 
                 successIds.add(event.getId());
             } catch (AmqpException ex) {

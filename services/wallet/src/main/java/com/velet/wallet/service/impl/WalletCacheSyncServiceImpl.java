@@ -1,12 +1,10 @@
 package com.velet.wallet.service.impl;
 
-import com.velet.wallet.dto.cache.ReservationRecord;
-import com.velet.wallet.dto.event.BalanceReservationCreatedEvent;
-import com.velet.wallet.dto.event.TransactionCanceledEvent;
-import com.velet.wallet.dto.event.TransferCompletedEvent;
+import com.velet.wallet.infrastructure.consumer.wallet.event.BalanceReservationCreatedEvent;
+import com.velet.wallet.infrastructure.consumer.wallet.event.TransactionCancelledEvent;
+import com.velet.wallet.infrastructure.consumer.wallet.event.TransferCompletedEvent;
 import com.velet.wallet.models.ProcessedEvent;
 import com.velet.wallet.models.enums.ProcessingStatus;
-import com.velet.wallet.models.enums.ReservationStatus;
 import com.velet.wallet.repository.ProcessedEventRepository;
 import com.velet.wallet.repository.WalletCacheRepository;
 import com.velet.wallet.service.WalletCacheSyncService;
@@ -72,7 +70,7 @@ public class WalletCacheSyncServiceImpl implements WalletCacheSyncService {
     }
 
     @Override
-    public void releaseBalance(Long eventId, TransactionCanceledEvent payload) {
+    public void releaseBalance(Long eventId, TransactionCancelledEvent payload) {
         ProcessedEvent existing = tryClaim(eventId);
 
         if (existing != null && existing.getStatus() == ProcessingStatus.DONE) {
@@ -135,7 +133,7 @@ public class WalletCacheSyncServiceImpl implements WalletCacheSyncService {
         }
     }
 
-    private void releaseBalanceOnCache(TransactionCanceledEvent payload) {
+    private void releaseBalanceOnCache(TransactionCancelledEvent payload) {
         try {
             cacheRepo.incrementCounter(payload.fromWalletId(), PENDING_DEBITS, payload.amount().negate().longValueExact());
             cacheRepo.incrementCounter(payload.toWalletId(), PENDING_CREDITS, payload.amount().negate().longValueExact());
