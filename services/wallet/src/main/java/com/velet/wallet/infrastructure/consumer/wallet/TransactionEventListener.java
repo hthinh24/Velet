@@ -5,7 +5,7 @@ import com.velet.wallet.configuaration.rabbitmq.WalletExchangeConfig;
 import com.velet.wallet.infrastructure.consumer.wallet.event.BalanceReservationCreatedEvent;
 import com.velet.wallet.infrastructure.consumer.wallet.event.TransactionCancelledEvent;
 import com.velet.wallet.infrastructure.consumer.wallet.event.TransferCompletedEvent;
-import com.velet.wallet.service.WalletCacheSyncService;
+import com.velet.wallet.service.application.WalletCacheSyncService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;

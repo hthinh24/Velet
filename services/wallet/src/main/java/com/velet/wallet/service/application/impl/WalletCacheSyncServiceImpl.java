@@ -1,4 +1,4 @@
-package com.velet.wallet.service.impl;
+package com.velet.wallet.service.application.impl;
 
 import com.velet.wallet.infrastructure.consumer.wallet.event.BalanceReservationCreatedEvent;
 import com.velet.wallet.infrastructure.consumer.wallet.event.TransactionCancelledEvent;
@@ -7,7 +7,7 @@ import com.velet.wallet.models.ProcessedEvent;
 import com.velet.wallet.models.enums.ProcessingStatus;
 import com.velet.wallet.repository.ProcessedEventRepository;
 import com.velet.wallet.repository.WalletCacheRepository;
-import com.velet.wallet.service.WalletCacheSyncService;
+import com.velet.wallet.service.application.WalletCacheSyncService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;

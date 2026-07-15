@@ -1,4 +1,4 @@
-package com.velet.wallet.service;
+package com.velet.wallet.service.application;
 
 import com.velet.wallet.infrastructure.consumer.wallet.event.BalanceReservationCreatedEvent;
 import com.velet.wallet.infrastructure.consumer.wallet.event.TransactionCancelledEvent;
