@@ -3,10 +3,9 @@ package com.velet.wallet.service.impl;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.velet.wallet.app.SystemAccountCache;
-import com.velet.wallet.infrastructure.consumer.wallet.event.LoyaltyEvent;
-import com.velet.wallet.infrastructure.consumer.wallet.event.BalanceReservationCreatedEvent;
-import com.velet.wallet.infrastructure.consumer.wallet.event.TransactionCancelledEvent;
-import com.velet.wallet.infrastructure.consumer.wallet.event.TransferCompletedEvent;
+import com.velet.wallet.dto.request.ConfirmReservationRequest;
+import com.velet.wallet.dto.response.ConfirmReservationResponse;
+import com.velet.wallet.infrastructure.consumer.wallet.event.*;
 import com.velet.wallet.dto.request.ReleaseBalanceRequest;
 import com.velet.wallet.dto.request.ReserveBalanceRequest;
 import com.velet.wallet.dto.request.TransferRequest;
@@ -229,6 +228,86 @@ public class WalletServiceExecutor {
     }
 
     @Transactional
+    public ConfirmReservationResponse confirmReservation(ConfirmReservationRequest request) {
+        String debitKey = request.originIdempotencyKey() + ":DEBIT";
+        String creditKey = request.originIdempotencyKey() + ":CREDIT";
+
+        log.info("confirmReservation: originIdempotencyKey={}, confirmIdempotencyKey={}",
+                 request.originIdempotencyKey(), request.confirmIdempotencyKey());
+
+        Transaction transaction = transactionRepository.findByIdempotencyKey(request.originIdempotencyKey())
+                                                       .orElseThrow(
+                                                               () -> new AppException(ErrorCode.RESERVATION_NOT_FOUND));
+
+        if (transaction.getStatus() == TransactionStatus.SUCCESS) {
+            return new ConfirmReservationResponse(ReservationStatus.COMPLETED,
+                                                  transaction.getId(),
+                                                  request.originIdempotencyKey(),
+                                                  transaction.getCreatedAt().toEpochMilli(),
+                                                  transaction.getUpdatedAt().toEpochMilli());
+        }
+
+        if (transaction.getStatus() == TransactionStatus.FAILED) {
+            throw new AppException(ErrorCode.INVALID_RESERVATION_STATE);
+        }
+
+        List<LedgerEntry> pairEntries = ledgerRepository
+                .findByIdempotencyKeys(List.of(debitKey, creditKey));
+        if (pairEntries.size() != 2) {
+            throw new AppException(ErrorCode.RESERVATION_NOT_FOUND);
+        }
+
+        pairEntries.forEach(entry -> {
+            if (entry.getStatus() != LedgerEntryStatus.PENDING) {
+                throw new AppException(ErrorCode.INVALID_RESERVATION_STATE);
+            }
+        });
+
+        pairEntries.forEach(entry -> {
+            ledgerRepository.updateLedgerEntryStatus(entry.getId(), LedgerEntryStatus.POSTED);
+        });
+
+        transaction.setStatus(TransactionStatus.SUCCESS);
+        transactionRepository.save(transaction);
+
+        Wallet debitWallet = pairEntries.get(1).getWallet();
+        Wallet creditWallet = transaction.getDestinationWallet();
+        LedgerEntry debitEntry = LedgerEntry.builder()
+                                            .transaction(transaction)
+                                            .wallet(debitWallet)
+                                            .entryType(EntryType.DEBIT)
+                                            .amount(transaction.getAmount())
+                                            .status(LedgerEntryStatus.POSTED)
+                                            .idempotencyKey(request.confirmIdempotencyKey() + ":DEBIT")
+                                            .build();
+        LedgerEntry creditEntry = LedgerEntry.builder()
+                                             .transaction(transaction)
+                                             .wallet(creditWallet)
+                                             .entryType(EntryType.CREDIT)
+                                             .amount(transaction.getAmount())
+                                             .status(LedgerEntryStatus.POSTED)
+                                             .idempotencyKey(request.confirmIdempotencyKey() + ":CREDIT")
+                                             .build();
+        ledgerRepository.saveAll(List.of(debitEntry, creditEntry));
+
+        Instant now = Instant.now();
+        Outbox outbox = Outbox.builder()
+                              .aggregateId(transaction.getId())
+                              .aggregateType(AggregateType.TRANSACTION)
+                              .eventType(EventType.RESERVATION_CONFIRMED) // xem note bên dưới
+                              .payload(buildReservationConfirmedEvent(transaction, request, now))
+                              .build();
+        outboxRepository.save(outbox);
+
+        log.info("confirmReservation completed: transactionId={}, confirmIdempotencyKey={}",
+                 transaction.getId(), request.confirmIdempotencyKey());
+
+        return new ConfirmReservationResponse(ReservationStatus.COMPLETED, transaction.getId(),
+                                              request.originIdempotencyKey(), transaction.getCreatedAt().toEpochMilli(),
+                                              transaction.getUpdatedAt().toEpochMilli());
+    }
+
+    @Transactional
     public ReleaseBalanceResponse release(ReleaseBalanceRequest request) {
         String debitKey = request.originIdempotencyKey() + ":DEBIT";
         String creditKey = request.originIdempotencyKey() + ":CREDIT";
@@ -414,6 +493,23 @@ public class WalletServiceExecutor {
                     occurredAt.toString()
             );
             return objectMapper.writeValueAsString(event);
+        } catch (JsonProcessingException e) {
+            throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private String buildReservationConfirmedEvent(Transaction transaction, ConfirmReservationRequest request,
+                                                  Instant occurredAt) {
+        try {
+            ReservationConfirmedEvent reservationConfirmedEvent =
+                    new ReservationConfirmedEvent(
+                            transaction.getId().toString(),
+                            transaction.getSourceWallet().getId().toString(),
+                            transaction.getDestinationWallet().getId().toString(),
+                            BigDecimal.valueOf(transaction.getAmount()),
+                            occurredAt.toString()
+                    );
+            return objectMapper.writeValueAsString(reservationConfirmedEvent);
         } catch (JsonProcessingException e) {
             throw new AppException(ErrorCode.INTERNAL_SERVER_ERROR);
         }
