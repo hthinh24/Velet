@@ -1,29 +1,23 @@
-package com.velet.wallet.service.impl;
+package com.velet.wallet.service.domain.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.velet.wallet.app.SystemAccountCache;
 import com.velet.wallet.dto.request.ConfirmReservationRequest;
-import com.velet.wallet.dto.response.ConfirmReservationResponse;
-import com.velet.wallet.infrastructure.consumer.wallet.event.*;
 import com.velet.wallet.dto.request.ReleaseBalanceRequest;
 import com.velet.wallet.dto.request.ReserveBalanceRequest;
 import com.velet.wallet.dto.request.TransferRequest;
-import com.velet.wallet.dto.response.ReleaseBalanceResponse;
-import com.velet.wallet.dto.response.ReserveBalanceResponse;
-import com.velet.wallet.dto.response.TransferResponse;
+import com.velet.wallet.dto.response.*;
 import com.velet.wallet.exception.AppException;
 import com.velet.wallet.exception.ErrorCode;
-import com.velet.wallet.models.Wallet;
-import com.velet.wallet.models.LedgerEntry;
-import com.velet.wallet.models.BalanceComponents;
-import com.velet.wallet.models.Outbox;
-import com.velet.wallet.models.Transaction;
+import com.velet.wallet.infrastructure.consumer.wallet.event.*;
+import com.velet.wallet.models.*;
 import com.velet.wallet.models.enums.*;
 import com.velet.wallet.repository.LedgerRepository;
 import com.velet.wallet.repository.OutboxRepository;
 import com.velet.wallet.repository.TransactionRepository;
 import com.velet.wallet.repository.WalletRepository;
+import com.velet.wallet.service.domain.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -35,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -44,7 +39,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class WalletServiceExecutor {
+public class WalletDomainService implements WalletService {
 
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
@@ -53,8 +48,54 @@ public class WalletServiceExecutor {
     private final ObjectMapper objectMapper;
     private final SystemAccountCache systemAccountCache;
 
+    @Override
+    public WalletInfo getWalletById(String walletId) {
+        Wallet wallet = walletRepository.findById(Long.parseLong(walletId))
+                                        .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+        if (wallet.getStatus() != AccountStatus.ACTIVE) {
+            throw new AppException(ErrorCode.WALLET_INACTIVE);
+        }
+
+        BalanceComponents balance = getBalanceComponents(walletId);
+
+        WalletInfo info = new WalletInfo(
+                wallet.getId(),
+                wallet.getOwnerId(),
+                wallet.getType(),
+                balance.available(),
+                balance.pendingDebits(),
+                wallet.getCurrency(),
+                wallet.getStatus()
+        );
+
+        return info;
+    }
+
+    @Override
+    public BalanceComponents getBalanceComponents(String walletId) {
+        WalletRepository.BalanceRow row = walletRepository.computeBalanceRaw(Long.parseLong(walletId));
+        BalanceComponents balance = new BalanceComponents(
+                row.getPostedDebits(), row.getPostedCredits(),
+                row.getPendingDebits(), row.getPendingCredits()
+        );
+
+        return balance;
+    }
+
+    @Override
+    public WalletBalanceResponse getWalletBalance(Long walletId) {
+        WalletInfo walletInfo = getWalletById(String.valueOf(walletId));
+        return new WalletBalanceResponse(
+                walletInfo.availableBalance(),
+                walletInfo.status().name()
+        );
+    }
+
     @Transactional
-    public TransferResponse transfer(Long senderId, Long receiverId, TransferRequest request) {
+    public TransferResponse transfer(TransferRequest request) {
+        Long receiverId = Long.parseLong(request.toWalletId());
+        Long senderId = Long.parseLong(request.fromWalletId());
+
         long amountInCents = request.amount().longValueExact();
 
         // Acquire pessimistic write lock on both wallet rows to prevent race condition
@@ -151,6 +192,7 @@ public class WalletServiceExecutor {
         );
     }
 
+    @Override
     @Transactional
     public ReserveBalanceResponse reserve(ReserveBalanceRequest request) {
         String debitKey = request.idempotencyKey() + ":DEBIT";
@@ -225,6 +267,11 @@ public class WalletServiceExecutor {
 
         return new ReserveBalanceResponse(ReservationStatus.RESERVED, transaction.getId(), request.idempotencyKey(),
                                           transaction.getCreatedAt().toEpochMilli(), null);
+    }
+
+    @Override
+    public ReserveBalanceResponse getReservationStatus(String idempotencyKey) {
+        return null;
     }
 
     @Transactional
@@ -401,6 +448,19 @@ public class WalletServiceExecutor {
         return new ReleaseBalanceResponse(ReservationStatus.RELEASED, transaction.getId(),
                                           request.originIdempotencyKey(), transaction.getCreatedAt().toEpochMilli(),
                                           transaction.getUpdatedAt().toEpochMilli());
+    }
+
+
+    @Override
+    public void validateWalletOwner(Long walletId, Long userId) {
+        Wallet wallet = walletRepository.findById(walletId)
+                                        .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
+
+        log.info("validateWalletOwner: walletId={}, walletOwnerId={}, userId={}", walletId, wallet.getOwnerId(),
+                 userId);
+        if (!Objects.equals(wallet.getOwnerId(), userId)) {
+            throw new AppException(ErrorCode.UNAUTHORIZED_ACTION);
+        }
     }
 
     private ReserveBalanceResponse lookupExistingTransaction(String idempotencyKey) {

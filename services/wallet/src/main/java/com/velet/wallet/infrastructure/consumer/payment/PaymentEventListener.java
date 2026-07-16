@@ -2,11 +2,9 @@ package com.velet.wallet.infrastructure.consumer.payment;
 
 import com.rabbitmq.client.Channel;
 import com.velet.wallet.configuaration.rabbitmq.PaymentConsumerConfig;
-import com.velet.wallet.configuaration.rabbitmq.WalletExchangeConfig;
 import com.velet.wallet.infrastructure.consumer.payment.event.PaymentCancelledEventPayload;
 import com.velet.wallet.infrastructure.consumer.payment.event.PaymentConfirmedEventPayload;
-import com.velet.wallet.infrastructure.consumer.wallet.event.TransactionCancelledEvent;
-import com.velet.wallet.service.WalletCacheSyncService;
+import com.velet.wallet.service.application.WalletCacheSyncService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;

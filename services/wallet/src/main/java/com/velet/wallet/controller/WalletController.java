@@ -9,7 +9,7 @@ import com.velet.wallet.dto.response.ReleaseBalanceResponse;
 import com.velet.wallet.dto.response.ReserveBalanceResponse;
 import com.velet.wallet.dto.response.TransferResponse;
 import com.velet.wallet.dto.response.WalletInfo;
-import com.velet.wallet.service.WalletService;
+import com.velet.wallet.service.domain.WalletService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,7 +50,7 @@ public class WalletController {
         return ApiResponse.<WalletInfo>builder()
                 .code(200)
                 .message("Account info retrieved")
-                .data(walletService.getWalletById(userId, walletId))
+                .data(walletService.getWalletById(walletId))
                 .build();
     }
 

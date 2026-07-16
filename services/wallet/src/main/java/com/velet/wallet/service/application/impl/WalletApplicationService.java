@@ -1,4 +1,4 @@
-package com.velet.wallet.service.impl;
+package com.velet.wallet.service.application.impl;
 
 import com.velet.wallet.dto.cache.BalanceCounter;
 import com.velet.wallet.dto.cache.ReservationRecord;
@@ -10,22 +10,17 @@ import com.velet.wallet.dto.response.*;
 import com.velet.wallet.exception.AppException;
 import com.velet.wallet.exception.ErrorCode;
 import com.velet.wallet.models.BalanceComponents;
-import com.velet.wallet.models.Wallet;
-import com.velet.wallet.models.enums.AccountStatus;
 import com.velet.wallet.models.enums.ReservationStatus;
 import com.velet.wallet.repository.WalletCacheRepository;
-import com.velet.wallet.repository.WalletRepository;
-import com.velet.wallet.service.WalletService;
+import com.velet.wallet.service.domain.WalletService;
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
 import io.micrometer.observation.annotation.Observed;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.time.Instant;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -33,29 +28,37 @@ import java.util.Optional;
  * such as cache, observations, message queue...
  */
 @Service
-@RequiredArgsConstructor
+@Primary
 @Slf4j
-public class WalletServiceImpl implements WalletService {
+public class WalletApplicationService implements WalletService {
 
-    private final WalletRepository walletRepository;
+    private final WalletService walletService;
     private final WalletCacheRepository cacheRepo;
-    private final WalletServiceExecutor walletServiceExecutor;
     private final ObservationRegistry observationRegistry;
 
+    public WalletApplicationService(
+            @Qualifier("walletDomainService") WalletService walletService,
+            WalletCacheRepository cacheRepo,
+            ObservationRegistry observationRegistry) {
+        this.walletService = walletService;
+        this.cacheRepo = cacheRepo;
+        this.observationRegistry = observationRegistry;
+    }
+
     @Override
-    public WalletInfo getWalletById(String userId, String walletId) {
+    public WalletInfo getWalletById(String walletId) {
         WalletInfo walletInfo = getWallet(walletId);
-        validateWalletOwner(walletInfo.ownerId(), Long.parseLong(userId));
         return walletInfo;
     }
 
     @Override
+    public BalanceComponents getBalanceComponents(String walletId) {
+        return walletService.getBalanceComponents(walletId);
+    }
+
+    @Override
     public WalletBalanceResponse getWalletBalance(Long walletId) {
-        WalletInfo walletInfo = getWallet(String.valueOf(walletId));
-        return new WalletBalanceResponse(
-                walletInfo.availableBalance(),
-                walletInfo.status().name()
-        );
+        return walletService.getWalletBalance(walletId);
     }
 
     /**
@@ -80,11 +83,6 @@ public class WalletServiceImpl implements WalletService {
         if (request.fromWalletId().equals(request.toWalletId())) {
             throw new AppException(ErrorCode.TRANSFER_TO_SELF);
         }
-
-        WalletInfo sender = getWallet(request.fromWalletId());
-        validateWalletOwner(sender.ownerId(), Long.parseLong(request.userId()));
-
-        WalletInfo receiver = getWallet(request.toWalletId());
 
         // Early-reject: read balance cache to fail-fast on obvious insufficient-fund cases.
         Optional<BalanceComponents> cachedBalance = cacheRepo.getCounters(request.fromWalletId());
@@ -111,8 +109,8 @@ public class WalletServiceImpl implements WalletService {
             log.info("transfer.lock.acquired firstLock={} secondLock={}", firstLock, secondLock);
 
             long startMs = System.currentTimeMillis();
-            TransferResponse response = walletServiceExecutor.transfer(
-                    sender.walletId(), receiver.walletId(), request
+            TransferResponse response = walletService.transfer(
+                    request
             );
             log.info("transfer.completed transactionId={} durationMs={}",
                      response.transactionId(), System.currentTimeMillis() - startMs);
@@ -180,7 +178,7 @@ public class WalletServiceImpl implements WalletService {
             log.info("reserve.lock.acquired firstLock={} secondLock={}", firstLock, secondLock);
 
             long startMs = System.currentTimeMillis();
-            ReserveBalanceResponse response = walletServiceExecutor.reserve(request);
+            ReserveBalanceResponse response = walletService.reserve(request);
             log.info("reserve.completed, durationMs={}",
                      System.currentTimeMillis() - startMs);
             cacheRepo.saveReservationRecord(request.idempotencyKey(),
@@ -213,7 +211,7 @@ public class WalletServiceImpl implements WalletService {
 
     @Override
     public ConfirmReservationResponse confirmReservation(ConfirmReservationRequest request) {
-        return walletServiceExecutor.confirmReservation(request);
+        return walletService.confirmReservation(request);
     }
 
     @Override
@@ -246,16 +244,15 @@ public class WalletServiceImpl implements WalletService {
             );
         }
 
-        ReleaseBalanceResponse release = walletServiceExecutor.release(request);
+        ReleaseBalanceResponse release = walletService.release(request);
         cacheRepo.release(release.originIdempotencyKey(), release);
 
         return release;
     }
 
-    private void validateWalletOwner(Long walletOwnerId, Long userId) {
-        if (!Objects.equals(walletOwnerId, userId)) {
-            throw new AppException(ErrorCode.UNAUTHORIZED_ACTION);
-        }
+    @Override
+    public void validateWalletOwner(Long walletOwnerId, Long userId) {
+        walletService.validateWalletOwner(walletOwnerId, userId);
     }
 
     public WalletInfo getWallet(String walletId) {
@@ -264,28 +261,8 @@ public class WalletServiceImpl implements WalletService {
     }
 
     private WalletInfo loadFromDbAndCache(String walletId) {
-        Wallet wallet = walletRepository.findById(Long.parseLong(walletId))
-                                        .orElseThrow(() -> new AppException(ErrorCode.WALLET_NOT_FOUND));
-
-        if (wallet.getStatus() != AccountStatus.ACTIVE) {
-            throw new AppException(ErrorCode.WALLET_INACTIVE);
-        }
-
-        WalletRepository.BalanceRow row = walletRepository.computeBalanceRaw(Long.parseLong(walletId));
-        BalanceComponents balance = new BalanceComponents(
-                row.getPostedDebits(), row.getPostedCredits(),
-                row.getPendingDebits(), row.getPendingCredits()
-        );
-
-        WalletInfo info = new WalletInfo(
-                wallet.getId(),
-                wallet.getOwnerId(),
-                wallet.getType(),
-                balance.available(),
-                balance.pendingDebits(),
-                wallet.getCurrency(),
-                wallet.getStatus()
-        );
+        WalletInfo info = walletService.getWalletById(walletId);
+        BalanceComponents balance = getBalanceComponents(walletId);
 
         cacheRepo.saveAccount(walletId, info);
         cacheRepo.saveCounters(walletId, createBalanceCounter(balance));

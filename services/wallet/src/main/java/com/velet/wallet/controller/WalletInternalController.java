@@ -1,16 +1,10 @@
 package com.velet.wallet.controller;
 
 import com.velet.wallet.dto.common.ApiResponse;
-import com.velet.wallet.dto.request.ReleaseBalanceRequest;
-import com.velet.wallet.dto.request.ReserveBalanceRequest;
-import com.velet.wallet.dto.request.TransferRequest;
-import com.velet.wallet.dto.request.TransferRequestBody;
 import com.velet.wallet.dto.response.*;
-import com.velet.wallet.service.WalletService;
-import jakarta.validation.Valid;
+import com.velet.wallet.service.domain.WalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
