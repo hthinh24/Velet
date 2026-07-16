@@ -114,7 +114,7 @@ public class WalletDomainService implements WalletService {
         }
 
         Wallet senderWallet = walletRepository.getReferenceById(senderId);
-        Wallet receiverWallet = walletRepository.getReferenceById(receiverId);
+        Wallet creditWallet = walletRepository.getReferenceById(receiverId);
 
         // 5c. Insert Transaction — saveAndFlush forces the INSERT immediately
         // can catch DataIntegrityViolationException (duplicate idempotencyKey)
@@ -123,7 +123,7 @@ public class WalletDomainService implements WalletService {
         try {
             transaction = transactionRepository.saveAndFlush(Transaction.builder()
                                                                         .sourceWallet(senderWallet)
-                                                                        .destinationWallet(receiverWallet)
+                                                                        .destinationWallet(creditWallet)
                                                                         .amount(amountInCents)
                                                                         .type(TransactionType.TRANSFER)
                                                                         .status(TransactionStatus.SUCCESS)
@@ -144,15 +144,15 @@ public class WalletDomainService implements WalletService {
                            .entryType(EntryType.DEBIT)
                            .amount(amountInCents)
                            .status(LedgerEntryStatus.POSTED)
-                           .idempotencyKey(generateLedgerIdempotentKey(request.idempotencyKey(), "debit"))
+                           .idempotencyKey(buildIdempotentKey(request.idempotencyKey(), "debit"))
                            .build(),
                 LedgerEntry.builder()
                            .transaction(transaction)
-                           .wallet(receiverWallet)
+                           .wallet(creditWallet)
                            .entryType(EntryType.CREDIT)
                            .amount(amountInCents)
                            .status(LedgerEntryStatus.POSTED)
-                           .idempotencyKey(generateLedgerIdempotentKey(request.idempotencyKey(), "credit"))
+                           .idempotencyKey(buildIdempotentKey(request.idempotencyKey(), "credit"))
                            .build()
         ));
 
@@ -195,8 +195,8 @@ public class WalletDomainService implements WalletService {
     @Override
     @Transactional
     public ReserveBalanceResponse reserve(ReserveBalanceRequest request) {
-        String debitKey = request.idempotencyKey() + ":DEBIT";
-        String creditKey = request.idempotencyKey() + ":CREDIT";
+        String debitKey = buildIdempotentKey(request.idempotencyKey(), "debit");
+        String creditKey = buildIdempotentKey(request.idempotencyKey(), "credit");
 
         Long sourceWalletId = Long.parseLong(request.fromWalletId());
         Long holdWalletId = Long.parseLong(request.toWalletId());
@@ -276,8 +276,8 @@ public class WalletDomainService implements WalletService {
 
     @Transactional
     public ConfirmReservationResponse confirmReservation(ConfirmReservationRequest request) {
-        String debitKey = request.originIdempotencyKey() + ":DEBIT";
-        String creditKey = request.originIdempotencyKey() + ":CREDIT";
+        String debitKey = buildIdempotentKey(request.originIdempotencyKey(), "debit");
+        String creditKey = buildIdempotentKey(request.originIdempotencyKey(), "credit");
 
         log.info("confirmReservation: originIdempotencyKey={}, confirmIdempotencyKey={}",
                  request.originIdempotencyKey(), request.confirmIdempotencyKey());
@@ -325,7 +325,8 @@ public class WalletDomainService implements WalletService {
                                             .entryType(EntryType.DEBIT)
                                             .amount(transaction.getAmount())
                                             .status(LedgerEntryStatus.POSTED)
-                                            .idempotencyKey(request.confirmIdempotencyKey() + ":DEBIT")
+                                            .idempotencyKey(
+                                                    buildIdempotentKey(request.confirmIdempotencyKey(), "debit"))
                                             .build();
         LedgerEntry creditEntry = LedgerEntry.builder()
                                              .transaction(transaction)
@@ -333,7 +334,8 @@ public class WalletDomainService implements WalletService {
                                              .entryType(EntryType.CREDIT)
                                              .amount(transaction.getAmount())
                                              .status(LedgerEntryStatus.POSTED)
-                                             .idempotencyKey(request.confirmIdempotencyKey() + ":CREDIT")
+                                             .idempotencyKey(buildIdempotentKey(request.confirmIdempotencyKey(),
+                                                                                      "credit"))
                                              .build();
         ledgerRepository.saveAll(List.of(debitEntry, creditEntry));
 
@@ -341,7 +343,7 @@ public class WalletDomainService implements WalletService {
         Outbox outbox = Outbox.builder()
                               .aggregateId(transaction.getId())
                               .aggregateType(AggregateType.TRANSACTION)
-                              .eventType(EventType.RESERVATION_CONFIRMED) // xem note bên dưới
+                              .eventType(EventType.RESERVATION_CONFIRMED)
                               .payload(buildReservationConfirmedEvent(transaction, request, now))
                               .build();
         outboxRepository.save(outbox);
@@ -356,8 +358,8 @@ public class WalletDomainService implements WalletService {
 
     @Transactional
     public ReleaseBalanceResponse release(ReleaseBalanceRequest request) {
-        String debitKey = request.originIdempotencyKey() + ":DEBIT";
-        String creditKey = request.originIdempotencyKey() + ":CREDIT";
+        String debitKey = buildIdempotentKey(request.originIdempotencyKey(), "debit");
+        String creditKey = buildIdempotentKey(request.originIdempotencyKey(), "credit");
 
         log.info("releaseBalance: originIdempotencyKey={}, releaseIdempotencyKey={}", request.originIdempotencyKey(),
                  request.releaseIdempotencyKey());
@@ -463,6 +465,47 @@ public class WalletDomainService implements WalletService {
         }
     }
 
+    @Override
+    public void postInternalEntry(Long debitWalletId, Long creditWalletId, TransactionType transactionType,
+                                  Long amount, String idempotencyKey) {
+
+        Wallet debitWallet = walletRepository.getReferenceById(debitWalletId);
+        Wallet creditWallet = walletRepository.getReferenceById(creditWalletId);
+
+        Transaction transaction;
+        try {
+            transaction = transactionRepository.saveAndFlush(Transaction.builder()
+                                                                        .sourceWallet(debitWallet)
+                                                                        .destinationWallet(creditWallet)
+                                                                        .amount(amount)
+                                                                        .type(transactionType)
+                                                                        .status(TransactionStatus.SUCCESS)
+                                                                        .idempotencyKey(idempotencyKey)
+                                                                        .build());
+        } catch (DataIntegrityViolationException ex) {
+            throw new AppException(ErrorCode.DUPLICATE_TRANSFER);
+        }
+
+        ledgerRepository.saveAll(List.of(
+                LedgerEntry.builder()
+                           .transaction(transaction)
+                           .wallet(debitWallet)
+                           .entryType(EntryType.DEBIT)
+                           .amount(amount)
+                           .status(LedgerEntryStatus.POSTED)
+                           .idempotencyKey(buildIdempotentKey(idempotencyKey, "debit"))
+                           .build(),
+                LedgerEntry.builder()
+                           .transaction(transaction)
+                           .wallet(creditWallet)
+                           .entryType(EntryType.CREDIT)
+                           .amount(amount)
+                           .status(LedgerEntryStatus.POSTED)
+                           .idempotencyKey(buildIdempotentKey(idempotencyKey, "credit"))
+                           .build()
+        ));
+    }
+
     private ReserveBalanceResponse lookupExistingTransaction(String idempotencyKey) {
         Transaction existing = transactionRepository.findByIdempotencyKey(idempotencyKey)
                                                     .orElse(null);
@@ -487,10 +530,15 @@ public class WalletDomainService implements WalletService {
         };
     }
 
-    private String generateLedgerIdempotentKey(String idempotencyKey, String suffix) {
-        return UUID.nameUUIDFromBytes(
-                (idempotencyKey + ":" + suffix).getBytes(StandardCharsets.UTF_8)
-        ).toString();
+    private String buildIdempotentKey(String... suffixs) {
+        StringBuilder sb = new StringBuilder();
+        for (String suffix : suffixs) {
+            if (suffix == null || suffix.isEmpty()) {
+                throw new IllegalArgumentException("suffix must not be empty");
+            }
+            sb.append(suffix).append(":");
+        }
+        return sb.toString();
     }
 
     private String buildTransferCompletedPayload(Transaction transaction, TransferRequest request, Instant occurredAt) {
