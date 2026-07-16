@@ -147,7 +147,7 @@ public class PaymentServiceImpl implements PaymentService {
         long merchantNet = mdrCalculator.computeMerchantNet(payment.getOriginalPrice(), 0L, mdrFee);
         long finalPrice = payment.getOriginalPrice(); // no voucher/coin in MVP
 
-        String reserveIdempotencyKey = "pay-reserve-" + payment.getIdempotencyKey();
+        String reserveIdempotencyKey = payment.getIdempotencyKey();
         WalletReserveRequest reserveRequest = new WalletReserveRequest(
                 String.valueOf(payment.getUserId()),
                 String.valueOf(payment.getMerchantId()),
@@ -213,6 +213,8 @@ public class PaymentServiceImpl implements PaymentService {
                                            .voucherId(null)
                                            .coinAmount(0L)
                                            .voucherFundedBy(null)
+                                           .originIdempotencyKey(payment.getIdempotencyKey())
+                                           .confirmIdempotencyKey(payment.getIdempotencyKey() + ":confirm")
                                            .build();
     }
 

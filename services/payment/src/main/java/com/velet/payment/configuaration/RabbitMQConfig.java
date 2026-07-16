@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
-    public static final String PAYMENT_EXCHANGE = "payment.exchange";
+    public static final String PAYMENT_EXCHANGE = "velet.payment.topic";
 
     @Bean
     public TopicExchange paymentExchange() {

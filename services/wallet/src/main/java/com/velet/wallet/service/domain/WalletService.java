@@ -6,16 +6,27 @@ import com.velet.wallet.dto.request.ReserveBalanceRequest;
 import com.velet.wallet.dto.request.TransferRequest;
 import com.velet.wallet.dto.response.*;
 import com.velet.wallet.models.BalanceComponents;
+import com.velet.wallet.models.enums.TransactionType;
 
 public interface WalletService {
     WalletInfo getWalletById(String walletId);
+
     BalanceComponents getBalanceComponents(String walletId);
+
     TransferResponse transfer(TransferRequest transferRequest);
+
     ReserveBalanceResponse reserve(ReserveBalanceRequest reserveBalanceRequest);
+
     ReserveBalanceResponse getReservationStatus(String idempotencyKey);
+
     ConfirmReservationResponse confirmReservation(ConfirmReservationRequest request);
+
     ReleaseBalanceResponse release(ReleaseBalanceRequest releaseBalanceRequest);
+
     void validateWalletOwner(Long walletOwnerId, Long userId);
+
+    void postInternalEntry(Long walletId, Long systemWalletId, TransactionType transactionType,
+                           Long amount, String idempotencyKey);
 
     // Internal methods for internal service calls
     WalletBalanceResponse getWalletBalance(Long walletId);

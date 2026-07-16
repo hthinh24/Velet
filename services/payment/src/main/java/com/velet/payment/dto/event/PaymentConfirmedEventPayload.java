@@ -13,5 +13,7 @@ public record PaymentConfirmedEventPayload(
         Long systemSubsidy,
         Long voucherId,
         Long coinAmount,
-        String voucherFundedBy
+        String voucherFundedBy,
+        String originIdempotencyKey,
+        String confirmIdempotencyKey
 ) {}

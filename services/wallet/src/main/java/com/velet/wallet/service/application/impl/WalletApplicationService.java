@@ -11,6 +11,7 @@ import com.velet.wallet.exception.AppException;
 import com.velet.wallet.exception.ErrorCode;
 import com.velet.wallet.models.BalanceComponents;
 import com.velet.wallet.models.enums.ReservationStatus;
+import com.velet.wallet.models.enums.TransactionType;
 import com.velet.wallet.repository.WalletCacheRepository;
 import com.velet.wallet.service.domain.WalletService;
 import io.micrometer.observation.Observation;
@@ -253,6 +254,12 @@ public class WalletApplicationService implements WalletService {
     @Override
     public void validateWalletOwner(Long walletOwnerId, Long userId) {
         walletService.validateWalletOwner(walletOwnerId, userId);
+    }
+
+    @Override
+    public void postInternalEntry(Long walletId, Long systemWalletId, TransactionType transactionType, Long amount,
+                                  String idempotencyKey) {
+        walletService.postInternalEntry(walletId, systemWalletId, transactionType, amount, idempotencyKey);
     }
 
     public WalletInfo getWallet(String walletId) {

@@ -4,7 +4,7 @@ import com.rabbitmq.client.Channel;
 import com.velet.wallet.configuaration.rabbitmq.PaymentConsumerConfig;
 import com.velet.wallet.infrastructure.consumer.payment.event.PaymentCancelledEventPayload;
 import com.velet.wallet.infrastructure.consumer.payment.event.PaymentConfirmedEventPayload;
-import com.velet.wallet.service.application.WalletCacheSyncService;
+import com.velet.wallet.service.application.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitHandler;
@@ -26,7 +26,7 @@ import java.io.IOException;
         ackMode = "MANUAL")
 public class PaymentEventListener {
 
-    private final WalletCacheSyncService walletCacheSyncService;
+    private final PaymentService paymentService;
 
     @RabbitHandler
     public void onPaymentConfirmed(
@@ -35,6 +35,7 @@ public class PaymentEventListener {
             Channel channel,
             @Header(AmqpHeaders.DELIVERY_TAG) long tag) throws IOException {
 
+        paymentService.confirmPayment(event);
         channel.basicAck(tag, false);
     }
 

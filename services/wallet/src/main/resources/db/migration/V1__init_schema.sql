@@ -49,7 +49,7 @@ ALTER SEQUENCE wallets_id_seq RESTART WITH 1001;
 -- TRANSACTION
 -- Records money movement between two wallets
 -- ------------------------------------------------------------
-CREATE TYPE transaction_type AS ENUM ('TRANSFER', 'TOPUP', 'WITHDRAW', 'PAYMENT', 'BILL_PAYMENT');
+CREATE TYPE transaction_type AS ENUM ('TRANSFER', 'TOPUP', 'WITHDRAW', 'PAYMENT', 'BILL_PAYMENT', 'MDR_FEE');
 CREATE TYPE transaction_status AS ENUM ('PENDING', 'SUCCESS', 'FAILED', 'REVERSED');
 CREATE TYPE cancel_reason AS ENUM ('PAYMENT_FAILED', 'PAYMENT_TIMEOUT', 'USER_CANCELLED', 'MANUAL_ADJUSTMENT');
 
@@ -168,7 +168,7 @@ CREATE INDEX idx_bills_bill_ref_no ON bills (bill_ref_no);
 -- Transactional outbox pattern
 -- ------------------------------------------------------------
 CREATE TYPE aggregate_type AS ENUM ('TRANSACTION');
-CREATE TYPE event_type AS ENUM ('TRANSFER_COMPLETED', 'LOYALTY_TRANSFER_EVENT', 'BALANCE_RESERVATION_CREATED', 'TRANSACTION_CANCELLED');
+CREATE TYPE event_type AS ENUM ('TRANSFER_COMPLETED', 'LOYALTY_TRANSFER_EVENT', 'BALANCE_RESERVATION_CREATED', 'RESERVATION_CONFIRMED', 'TRANSACTION_CANCELLED');
 CREATE TYPE outbox_status AS ENUM ('PENDING', 'PROCESSING', 'SENT', 'FAILED');
 
 CREATE TABLE outbox
