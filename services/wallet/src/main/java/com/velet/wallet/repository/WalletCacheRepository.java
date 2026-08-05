@@ -37,5 +37,7 @@ public interface WalletCacheRepository {
 
     void updateReservationRecordStatus(String idempotencyKey, String status);
 
-    void confirmReservation(Long walletId, Long amount);
+    void confirmReservation(Long walletId, BigDecimal amount);
+
+    void chargeMDRFee(Long walletId, BigDecimal amount);
 }

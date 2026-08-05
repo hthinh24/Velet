@@ -1,6 +1,5 @@
 package com.velet.wallet.repository;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.velet.wallet.dto.cache.BalanceCounter;
 import com.velet.wallet.dto.cache.ReservationRecord;
@@ -20,7 +19,6 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -176,15 +174,17 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
     }
 
     @Override
-    public void confirmReservation(Long walletId, Long amount) {
+    public void confirmReservation(Long walletId, BigDecimal amount) {
         postPendingAvailableToPosted(walletId.toString(), amount);
     }
 
-    private void postPendingAvailableToPosted(String walletId, Long amount) {
-        String key = ACCOUNT_PREFIX + walletId;
+    private void postPendingAvailableToPosted(String walletId, BigDecimal amount) {
+        increaseWalletBalance(walletId, PENDING_BALANCE, amount.negate());
+        increaseWalletBalance(walletId, AVAILABLE_BALANCE, amount);
+    }
 
-        hashRedisTemplate.opsForHash().increment(key, PENDING_BALANCE, -amount);
-        hashRedisTemplate.opsForHash().increment(key, AVAILABLE_BALANCE, amount);
-        hashRedisTemplate.expire(key, BALANCE_TTL);
+    @Override
+    public void chargeMDRFee(Long walletId, BigDecimal amount) {
+        increaseWalletBalance(walletId.toString(), AVAILABLE_BALANCE, amount.negate());
     }
 }

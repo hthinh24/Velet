@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 
 /**
@@ -213,7 +214,10 @@ public class WalletApplicationService implements WalletService {
     @Override
     public ConfirmReservationResponse confirmReservation(ConfirmReservationRequest request) {
         ConfirmReservationResponse confirmReservationResponse = walletService.confirmReservation(request);
-        cacheRepo.confirmReservation(confirmReservationResponse.toWalletId(), confirmReservationResponse.amount());
+
+        cacheRepo.confirmReservation(confirmReservationResponse.toWalletId(),
+                                     BigDecimal.valueOf(confirmReservationResponse.amount()));
+
         return confirmReservationResponse;
     }
 
@@ -262,6 +266,8 @@ public class WalletApplicationService implements WalletService {
     public void postInternalEntry(Long walletId, Long systemWalletId, TransactionType transactionType, Long amount,
                                   String idempotencyKey) {
         walletService.postInternalEntry(walletId, systemWalletId, transactionType, amount, idempotencyKey);
+
+        cacheRepo.chargeMDRFee(walletId, BigDecimal.valueOf(amount));
     }
 
     public WalletInfo getWallet(String walletId) {
