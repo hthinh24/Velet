@@ -57,6 +57,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
+    @Transactional
     public CreatePaymentResponse initiatePayment(CreatePaymentRequest request, String idempotencyKey) {
         CreatePaymentResponse existed = getPaymentByIdempotencyKey(idempotencyKey);
         if (existed != null) {

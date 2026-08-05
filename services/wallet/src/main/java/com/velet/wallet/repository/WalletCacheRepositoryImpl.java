@@ -1,6 +1,5 @@
 package com.velet.wallet.repository;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.velet.wallet.dto.cache.BalanceCounter;
 import com.velet.wallet.dto.cache.ReservationRecord;
@@ -20,7 +19,6 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -46,6 +44,9 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
     private static final String ACCOUNT_PREFIX = "wallet:";
     private static final String BALANCE_PREFIX = "wallet:balance:";
     private static final String RESERVATION_PREFIX = "wallet:reserve:idempotency:";
+
+    private static final String AVAILABLE_BALANCE = "availableBalance";
+    private static final String PENDING_BALANCE = "pendingBalance";
 
     private static final String FIELD_POSTED_DEBITS = "posted_debits";
     private static final String FIELD_POSTED_CREDITS = "posted_credits";
@@ -170,5 +171,20 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
     private long toLong(Object value) {
         if (value == null) return 0L;
         return Long.parseLong((String) value);
+    }
+
+    @Override
+    public void confirmReservation(Long walletId, BigDecimal amount) {
+        postPendingAvailableToPosted(walletId.toString(), amount);
+    }
+
+    private void postPendingAvailableToPosted(String walletId, BigDecimal amount) {
+        increaseWalletBalance(walletId, PENDING_BALANCE, amount.negate());
+        increaseWalletBalance(walletId, AVAILABLE_BALANCE, amount);
+    }
+
+    @Override
+    public void chargeMDRFee(Long walletId, BigDecimal amount) {
+        increaseWalletBalance(walletId.toString(), AVAILABLE_BALANCE, amount.negate());
     }
 }
