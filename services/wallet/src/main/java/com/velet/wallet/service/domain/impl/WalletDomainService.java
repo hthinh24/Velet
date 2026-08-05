@@ -289,6 +289,9 @@ public class WalletDomainService implements WalletService {
         if (transaction.getStatus() == TransactionStatus.SUCCESS) {
             return new ConfirmReservationResponse(ReservationStatus.COMPLETED,
                                                   transaction.getId(),
+                                                  transaction.getSourceWallet().getId(),
+                                                  transaction.getDestinationWallet().getId(),
+                                                  transaction.getAmount(),
                                                   request.originIdempotencyKey(),
                                                   transaction.getCreatedAt().toEpochMilli(),
                                                   transaction.getUpdatedAt().toEpochMilli());
@@ -335,7 +338,7 @@ public class WalletDomainService implements WalletService {
                                              .amount(transaction.getAmount())
                                              .status(LedgerEntryStatus.POSTED)
                                              .idempotencyKey(buildIdempotentKey(request.confirmIdempotencyKey(),
-                                                                                      "credit"))
+                                                                                "credit"))
                                              .build();
         ledgerRepository.saveAll(List.of(debitEntry, creditEntry));
 
@@ -352,8 +355,13 @@ public class WalletDomainService implements WalletService {
                  transaction.getId(), request.confirmIdempotencyKey());
 
         return new ConfirmReservationResponse(ReservationStatus.COMPLETED, transaction.getId(),
-                                              request.originIdempotencyKey(), transaction.getCreatedAt().toEpochMilli(),
-                                              transaction.getUpdatedAt().toEpochMilli());
+                                              debitWallet.getId(),
+                                              creditWallet.getId(),
+                                              transaction.getAmount(),
+                                              request.originIdempotencyKey(),
+                                              transaction.getCreatedAt().toEpochMilli(),
+                                              transaction.getUpdatedAt().toEpochMilli()
+        );
     }
 
     @Transactional

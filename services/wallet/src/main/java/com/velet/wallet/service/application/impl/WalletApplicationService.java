@@ -212,7 +212,9 @@ public class WalletApplicationService implements WalletService {
 
     @Override
     public ConfirmReservationResponse confirmReservation(ConfirmReservationRequest request) {
-        return walletService.confirmReservation(request);
+        ConfirmReservationResponse confirmReservationResponse = walletService.confirmReservation(request);
+        cacheRepo.confirmReservation(confirmReservationResponse.toWalletId(), confirmReservationResponse.amount());
+        return confirmReservationResponse;
     }
 
     @Override

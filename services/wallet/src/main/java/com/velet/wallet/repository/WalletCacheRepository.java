@@ -36,4 +36,6 @@ public interface WalletCacheRepository {
     void release(String idempotencyKey, ReleaseBalanceResponse data);
 
     void updateReservationRecordStatus(String idempotencyKey, String status);
+
+    void confirmReservation(Long walletId, Long amount);
 }

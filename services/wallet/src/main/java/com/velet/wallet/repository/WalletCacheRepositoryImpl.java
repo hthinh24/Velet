@@ -47,6 +47,9 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
     private static final String BALANCE_PREFIX = "wallet:balance:";
     private static final String RESERVATION_PREFIX = "wallet:reserve:idempotency:";
 
+    private static final String AVAILABLE_BALANCE = "availableBalance";
+    private static final String PENDING_BALANCE = "pendingBalance";
+
     private static final String FIELD_POSTED_DEBITS = "posted_debits";
     private static final String FIELD_POSTED_CREDITS = "posted_credits";
     private static final String FIELD_PENDING_DEBITS = "pending_debits";
@@ -170,5 +173,18 @@ public class WalletCacheRepositoryImpl implements WalletCacheRepository {
     private long toLong(Object value) {
         if (value == null) return 0L;
         return Long.parseLong((String) value);
+    }
+
+    @Override
+    public void confirmReservation(Long walletId, Long amount) {
+        postPendingAvailableToPosted(walletId.toString(), amount);
+    }
+
+    private void postPendingAvailableToPosted(String walletId, Long amount) {
+        String key = ACCOUNT_PREFIX + walletId;
+
+        hashRedisTemplate.opsForHash().increment(key, PENDING_BALANCE, -amount);
+        hashRedisTemplate.opsForHash().increment(key, AVAILABLE_BALANCE, amount);
+        hashRedisTemplate.expire(key, BALANCE_TTL);
     }
 }
