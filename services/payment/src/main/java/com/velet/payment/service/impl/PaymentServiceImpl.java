@@ -28,6 +28,8 @@ import com.velet.payment.repository.OutboxRepository;
 import com.velet.payment.repository.PaymentRepository;
 import com.velet.payment.service.PaymentService;
 import com.velet.payment.utils.MdrCalculator;
+import com.velet.payment.utils.TraceContextCapture;
+import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -55,9 +57,11 @@ public class PaymentServiceImpl implements PaymentService {
     private final TransactionTemplate transactionTemplate;
     private final ObjectMapper objectMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final TraceContextCapture traceContextCapture;
 
     @Override
     @Transactional
+    @Observed(name = "payment.created", contextualName = "payment.created")
     public CreatePaymentResponse initiatePayment(CreatePaymentRequest request, String idempotencyKey) {
         CreatePaymentResponse existed = getPaymentByIdempotencyKey(idempotencyKey);
         if (existed != null) {
@@ -131,6 +135,7 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
+    @Observed(name = "payment.process", contextualName = "payment.process")
     public void processPayment(Long paymentId) {
         Payment payment = paymentRepository.findById(paymentId)
                                            .orElse(null);
@@ -191,6 +196,7 @@ public class PaymentServiceImpl implements PaymentService {
                                         .aggregateId(comfirmedPayment.getId())
                                         .aggregateType(AggregateType.PAYMENT)
                                         .eventType(EventType.PAYMENT_CONFIRMED)
+                                        .traceParent(traceContextCapture.captureTraceParent())
                                         .payload(payload)
                                         .build());
 

@@ -20,13 +20,14 @@ public class PaymentProcessingHandler {
     private final PaymentRepository paymentRepository;
     private final PaymentService paymentService;
 
+    private static final long SCHEDULE_DELAY_MILLIS = 30_000L;
     private static final int BATCH_SIZE = 50;
     private static final long TIMEOUT_MINUTES = 5L;
 
     // TODO: When prevent race condition is needed,
     //  Suggest change to lease pattern with lock_by, locked_until
     //  instead pessimistic lock to avoid hold a long lock
-    @Scheduled(fixedDelay = 30_000)
+    @Scheduled(fixedDelay = SCHEDULE_DELAY_MILLIS)
     public void poll() {
         Instant cutoff = Instant.now().minusSeconds(TIMEOUT_MINUTES * 60);
         List<Long> ids =

@@ -24,6 +24,8 @@ public class RabbitMessageConverterConfig {
     public RabbitTemplate rabbitTemplate(ConnectionFactory cf, MessageConverter converter) {
         RabbitTemplate template = new RabbitTemplate(cf);
         template.setMessageConverter(converter);
+        template.setObservationEnabled(true);
+
         return template;
     }
 

@@ -2,11 +2,11 @@
 -- PAYMENT SERVICE SCHEMA
 -- ============================================================
 
-CREATE TYPE payment_status AS ENUM ('IN_PROGRESS', 'COMPLETED', 'CANCELLED');
+CREATE TYPE payment_status AS ENUM('IN_PROGRESS', 'COMPLETED', 'CANCELLED');
 
-CREATE TYPE voucher_funded_by AS ENUM ('PLATFORM', 'MERCHANT');
+CREATE TYPE voucher_funded_by AS ENUM('PLATFORM', 'MERCHANT');
 
-CREATE TYPE cancel_reason AS ENUM ('PAYMENT_FAILED', 'PAYMENT_TIMEOUT');
+CREATE TYPE cancel_reason AS ENUM('PAYMENT_FAILED', 'PAYMENT_TIMEOUT');
 
 -- ------------------------------------------------------------
 -- PAYMENT
@@ -56,11 +56,11 @@ CREATE INDEX idx_payment_merchant ON payments (merchant_id, created_at);
 -- OUTBOX
 -- ============================================================
 
-CREATE TYPE aggregate_type AS ENUM ('PAYMENT');
+CREATE TYPE aggregate_type AS ENUM('PAYMENT');
 
-CREATE TYPE event_type AS ENUM ('PAYMENT_CONFIRMED', 'PAYMENT_CANCELLED');
+CREATE TYPE event_type AS ENUM('PAYMENT_CONFIRMED', 'PAYMENT_CANCELLED');
 
-CREATE TYPE outbox_status AS ENUM ('PENDING', 'PROCESSING', 'SENT', 'FAILED');
+CREATE TYPE outbox_status AS ENUM('PENDING', 'PROCESSING', 'SENT', 'FAILED');
 
 CREATE TABLE outbox
 (
@@ -68,6 +68,7 @@ CREATE TABLE outbox
     aggregate_id   BIGINT         NOT NULL, -- payment.id
     aggregate_type aggregate_type NOT NULL,
     event_type     event_type     NOT NULL,
+    trace_parent   VARCHAR(55),
     payload        JSONB          NOT NULL,
     status         outbox_status  NOT NULL DEFAULT 'PENDING',
     retry_count    INT            NOT NULL DEFAULT 0,

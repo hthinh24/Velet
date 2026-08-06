@@ -7,6 +7,7 @@ import com.velet.wallet.models.enums.AccountType;
 import com.velet.wallet.models.enums.TransactionType;
 import com.velet.wallet.service.application.PaymentService;
 import com.velet.wallet.service.domain.WalletService;
+import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
+    @Observed(name = "payment.confirm", contextualName = "payment.confirm")
     public void confirmPayment(PaymentConfirmedEventPayload event) {
         log.info("Confirming payment for event: {}", event);
 

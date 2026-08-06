@@ -41,6 +41,9 @@ public class Outbox extends BaseCreatableEntity {
     @Builder.Default
     private EventType eventType = EventType.PAYMENT_CONFIRMED;
 
+    @Column(name = "trace_parent", nullable = true, length = 55)
+    private String traceParent;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "payload", nullable = false)
     private String payload;
