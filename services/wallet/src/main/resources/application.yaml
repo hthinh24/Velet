@@ -38,8 +38,11 @@ spring:
   rabbitmq:
     publisher-confirm-type: correlated
     publisher-returns: true
+    template:
+      observation-enabled: true
     listener:
       simple:
+        observation-enabled: true
         acknowledge-mode: manual
         default-requeue-rejected: false
         prefetch: 10

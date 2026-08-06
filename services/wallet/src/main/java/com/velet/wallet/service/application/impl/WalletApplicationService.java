@@ -68,7 +68,7 @@ public class WalletApplicationService implements WalletService {
      * delegates DB writes to WalletServiceExecutor → best-effort cache update → release lock.
      */
     @Override
-    @Observed(name = "wallet.transfer")
+    @Observed(name = "wallet.transfer", contextualName = "wallet.transfer")
     public TransferResponse transfer(TransferRequest request) {
         Observation observation = observationRegistry.getCurrentObservation();
         if (observation != null) {
