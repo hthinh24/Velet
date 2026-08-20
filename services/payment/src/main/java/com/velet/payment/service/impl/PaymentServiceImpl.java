@@ -60,7 +60,6 @@ public class PaymentServiceImpl implements PaymentService {
     private final TraceContextCapture traceContextCapture;
 
     @Override
-    @Transactional
     @Observed(name = "payment.created", contextualName = "payment.created")
     public CreatePaymentResponse initiatePayment(CreatePaymentRequest request, String idempotencyKey) {
         CreatePaymentResponse existed = getPaymentByIdempotencyKey(idempotencyKey);
@@ -84,12 +83,15 @@ public class PaymentServiceImpl implements PaymentService {
                                  .status(PaymentStatus.IN_PROGRESS)
                                  .build();
 
-        payment = paymentRepository.save(payment);
+        Payment savedPayment = transactionTemplate.execute(txStatus -> {
+            Payment p = paymentRepository.save(payment);
+            eventPublisher.publishEvent(new PaymentCreatedEvent(this, p.getId()));
+            return p;
+        });
+
         log.info("payment.tod paymentId={} idempotencyKey={}", payment.getId(), idempotencyKey);
 
-        paymentCacheRepository.put(payment);
-
-        eventPublisher.publishEvent(new PaymentCreatedEvent(this, payment.getId()));
+        paymentCacheRepository.put(savedPayment);
 
         return CreatePaymentResponse.builder()
                                     .paymentId(payment.getId())

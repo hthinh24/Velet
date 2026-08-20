@@ -3,6 +3,9 @@
 
 .vscode
 
+# Docs
+AGENT.md
+
 # Env #
 .env
 

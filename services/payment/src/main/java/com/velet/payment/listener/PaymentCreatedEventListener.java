@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 @Component
 @RequiredArgsConstructor
@@ -17,6 +19,7 @@ public class PaymentCreatedEventListener {
 
     @EventListener
     @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onPaymentCreated(PaymentCreatedEvent event) {
         log.info("payment.process.fast-path paymentId={}", event.getPaymentId());
         paymentService.processPayment(event.getPaymentId());
