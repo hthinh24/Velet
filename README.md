@@ -43,6 +43,39 @@ Velet models the core money-movement layer of a super-app style platform: user i
 
 ---
 
+## Getting Started
+
+```bash
+# Each service has its own .env
+cp services/gateway/.env.example services/gateway/.env
+cp services/identity/.env.example services/identity/.env
+cp services/payment/.env.example services/payment/.env
+cp services/wallet/.env.example services/wallet/.env
+```
+
+```bash
+# start dependencies (Postgres, Redis, RabbitMQ)
+docker-compose up -d
+```
+
+```bash
+# Start full infra with observability stack (Prometheus, Grafana, OTel Collector)
+docker-compose -f docker-compose.obs.yml up -d
+```
+
+Once env files and infra are up, run all services — each in its own window:
+```bash
+# Windows
+scripts\dev-up.bat
+```
+
+```bash
+# Linux / macOS
+./scripts/dev-up.sh
+```
+
+---
+
 ## What's Implemented
 
 - Identity service (login, register, logout)
