@@ -1,18 +1,26 @@
 # Velet — Payment & Wallet Core Infrastructure
-> A payment & wallet infrastructure focused on consistency-heavy distributed systems patterns. Current scope: Identity, Wallet, and Payment core services — built with an eye toward scaling into a broader super-app-style platform later.
+
+> A payment & wallet infrastructure focused on consistency-heavy distributed systems patterns. Current scope: Identity,
+> Wallet, and Payment core services — built with an eye toward scaling into a broader super-app-style platform later.
 
 ---
 
 ## Overview
-Velet models the core money-movement layer of a super-app style platform: user identity, wallet balance management, payment reservation/confirmation, and transfer between users and merchants. The focus is on **correctness under concurrency** — safe balance updates, idempotent retries, and consistent state across services under load — rather than breadth of features.
+
+Velet models the core money-movement layer of a super-app style platform: user identity, wallet balance management,
+payment reservation/confirmation, and transfer between users and merchants. The focus is on **correctness under
+concurrency** — safe balance updates, idempotent retries, and consistent state across services under load — rather than
+breadth of features.
 
 ---
 
 ## Architecture
+
 ![System Architecture](/assets/architecture.png)
 *Velet — Payment & Wallet core infrastructure system design*
 
 **Core patterns:**
+
 - Spring Cloud Gateway as single entry point, routing to Identity, Payment, and Wallet
 - Saga choreography (Reserve–Confirm–Release), no central orchestrator
 - Transactional Outbox + RabbitMQ for reliable async event publishing
@@ -24,7 +32,9 @@ Velet models the core money-movement layer of a super-app style platform: user i
 ---
 
 ## Key Flows
+
 ### Payment Flow
+
 ![System Architecture](/assets/payments_flow.png)
 *Velet - Payment full flow diagram*
 
@@ -32,14 +42,16 @@ Velet models the core money-movement layer of a super-app style platform: user i
 
 ## Tech Stack
 
-| Category | Tech |
-|---|---|
-| Language / Framework | Java, Spring Boot |
-| Database | PostgreSQL |
-| Cache | Redis |
-| Messaging | RabbitMQ |
-| Observability | OpenTelemetry, Prometheus, Grafana |
-| Load Testing | k6 |
+| Category                 | Tech                               |
+|--------------------------|------------------------------------|
+| **Language / Framework** | Java, Spring Boot (4.0.6)          |
+| **Database**             | PostgreSQL                         |
+| **Cache**                | Redis                              |
+| **Messaging**            | RabbitMQ                           |
+| **Observability**        | OpenTelemetry, Prometheus, Grafana |
+| **API Documentation**    | SpringDoc OpenAPI / Swagger UI     |
+| **Database Migration**   | Flyway                             |
+| **Load Testing**         | k6                                 |
 
 ---
 
@@ -64,6 +76,7 @@ docker-compose -f docker-compose.obs.yml up -d
 ```
 
 Once env files and infra are up, run all services — each in its own window:
+
 ```bash
 # Windows
 scripts\dev-up.bat
@@ -73,6 +86,31 @@ scripts\dev-up.bat
 # Linux / macOS
 ./scripts/dev-up.sh
 ```
+
+---
+
+## Endpoints
+
+**Infrastructure**
+
+| Service                    | URL                    | Credentials       |
+|----------------------------|------------------------|-------------------|
+| RabbitMQ Management UI     | http://localhost:15672 | `admin` / `admin` |
+| Grafana                    | http://localhost:3000  | `admin` / `admin` |
+| Prometheus                 | http://localhost:9090  | —                 |
+| OTel Collector (OTLP gRPC) | localhost:4317         | —                 |
+| OTel Collector (OTLP HTTP) | localhost:4318         | —                 |
+
+**API Docs (Swagger)**
+
+| Service  | URL                                         |
+|----------|---------------------------------------------|
+| Identity | http://localhost:8081/swagger-ui/index.html |
+| Wallet   | http://localhost:8082/swagger-ui/index.html |
+| Payment  | http://localhost:8083/swagger-ui/index.html |
+
+*(Ports/credentials above come from `.env.example` where available — swagger ports are placeholders, adjust to match
+each service's actual port.)*
 
 ---
 
@@ -87,3 +125,13 @@ scripts\dev-up.bat
 - Observability stack (tracing, metrics, dashboards) across all services
 
 This project was developed incrementally as time allowed — the sections above reflect what's actually running today.
+
+---
+
+## Support
+
+If you like this project, feel free to:
+
+- ⭐ this repository. And we will be happy together :)
+
+Thanks for supporting me!
