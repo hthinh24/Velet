@@ -87,6 +87,12 @@ scripts\dev-up.bat
 ./scripts/dev-up.sh
 ```
 
+K6 load testing script:
+```bash
+k6 run --out web-dashboard=open scripts\k6\load-test.js
+```
+
+
 ---
 
 ## Endpoints

@@ -64,7 +64,7 @@ export default function () {
 
 export function handleSummary(data) {
   return {
-    "payment_summary.html": htmlReport(data),
+    "payment_load_test_summary.html": htmlReport(data),
     stdout: textSummary(data, { indent: " ", enableColors: true }),
   };
 }
