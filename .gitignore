@@ -6,6 +6,10 @@
 # Docs
 AGENT.md
 
+.ua/.trash*/
+.ua/intermediate/
+.ua/tmp/
+
 # Env #
 .env
 
